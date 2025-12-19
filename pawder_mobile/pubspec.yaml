@@ -45,6 +45,9 @@ dependencies:
   flutter_map: ^7.0.0
   latlong2: ^0.9.1
 
+  # Declarative routing
+  go_router: ^14.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -55,6 +58,11 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  # App icon generator
+  flutter_launcher_icons: ^0.13.1
+  # Image processing for icon creation
+  image: ^4.1.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -69,7 +77,9 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/dog_emoji.png
+    - assets/paw_white.png
+    - assets/paw_black.png
+    - assets/app_icon.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -96,3 +106,25 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# App icon configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png" # Black background with white paw
+  min_sdk_android: 21 # android min sdk min:16, default 21
+  adaptive_icon_background: "#000000" # Black background for Android adaptive icon
+  adaptive_icon_foreground: "assets/paw_white.png"
+  remove_alpha_ios: true # Remove alpha channel for iOS App Store compliance
+  web:
+    generate: true
+    image_path: "assets/app_icon.png"
+    background_color: "#000000"
+    theme_color: "#000000"
+  windows:
+    generate: true
+    image_path: "assets/app_icon.png"
+    icon_size: 48 # min:48, max:256, default: 48
+  macos:
+    generate: true
+    image_path: "assets/app_icon.png"

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'ui/activity/activity_screen.dart';
+import 'ui/activity/activity_view_model.dart';
+import 'ui/auth/auth_view_model.dart';
 import 'ui/core/theme/app_theme.dart';
-import 'ui/home/home_view_model.dart';
 import 'ui/home/home_screen.dart';
-import 'ui/walk/walk_view_model.dart';
-import 'ui/walk/walk_screen.dart';
-import 'ui/settings/settings_view_model.dart';
+import 'ui/home/home_view_model.dart';
+import 'ui/login/login_screen.dart';
 import 'ui/settings/settings_screen.dart';
+import 'ui/settings/settings_view_model.dart';
+import 'ui/splash/splash_screen.dart';
 
 void main() {
   runApp(const PawderApp());
@@ -18,84 +22,120 @@ class PawderApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authViewModel = AuthViewModel();
+
+    final router = GoRouter(
+      initialLocation: '/splash',
+      routes: [
+        GoRoute(
+          path: '/splash',
+          name: 'splash',
+          builder: (context, state) => const SplashScreen(),
+        ),
+        GoRoute(
+          path: '/login',
+          name: 'login',
+          builder: (context, state) => const LoginScreen(),
+        ),
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) {
+            return RootShell(navigationShell: navigationShell);
+          },
+          branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/home',
+                  name: 'home',
+                  builder: (context, state) => const HomeScreen(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/activity',
+                  name: 'activity',
+                  builder: (context, state) => const ActivityScreen(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/settings',
+                  name: 'settings',
+                  builder: (context, state) => const SettingsScreen(),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: authViewModel),
         ChangeNotifierProvider(create: (_) => HomeViewModel()),
-        ChangeNotifierProvider(create: (_) => WalkViewModel()),
+        ChangeNotifierProvider(create: (_) => ActivityViewModel()),
         ChangeNotifierProvider(create: (_) => SettingsViewModel()),
       ],
-      child: MaterialApp(
+      child: MaterialApp.router(
         title: 'Pawder',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
-        home: const RootNavigatorPage(),
+        routerConfig: router,
       ),
     );
   }
 }
 
-enum RootTab { walk, home, settings }
+class RootShell extends StatelessWidget {
+  const RootShell({super.key, required this.navigationShell});
 
-class RootNavigatorPage extends StatefulWidget {
-  const RootNavigatorPage({super.key});
-
-  @override
-  State<RootNavigatorPage> createState() => _RootNavigatorPageState();
-}
-
-class _RootNavigatorPageState extends State<RootNavigatorPage> {
-  RootTab _currentTab = RootTab.home;
-
-  final _navigatorKeys = {
-    RootTab.walk: GlobalKey<NavigatorState>(),
-    RootTab.home: GlobalKey<NavigatorState>(),
-    RootTab.settings: GlobalKey<NavigatorState>(),
-  };
-
-  void _onTap(int index) {
-    final selected = RootTab.values[index];
-    if (_currentTab == selected) {
-      _navigatorKeys[selected]!
-          .currentState
-          ?.popUntil((route) => route.isFirst);
-    } else {
-      setState(() {
-        _currentTab = selected;
-      });
-    }
-  }
+  final StatefulNavigationShell navigationShell;
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        final navigator = _navigatorKeys[_currentTab]!.currentState;
-        if (navigator != null && navigator.canPop()) {
-          navigator.pop();
-          return false;
-        }
-        return true;
-      },
-      child: Scaffold(
-        body: Stack(
-          children: RootTab.values.map((tab) {
-            return _buildOffstageNavigator(tab);
-          }).toList(),
+    return Scaffold(
+      body: navigationShell,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentTab.index,
-          onTap: _onTap,
+        child: BottomNavigationBar(
+          currentIndex: navigationShell.currentIndex,
+          onTap: (index) => navigationShell.goBranch(
+            index,
+            initialLocation: index == navigationShell.currentIndex,
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: const Color(0xFF007AFF),
+          unselectedItemColor: Colors.black45,
+          type: BottomNavigationBarType.fixed,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.directions_walk),
-              label: '散歩',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
               label: 'ホーム',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
+              label: 'アクティビティ',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
               label: '設定',
             ),
           ],
@@ -103,30 +143,4 @@ class _RootNavigatorPageState extends State<RootNavigatorPage> {
       ),
     );
   }
-
-  Widget _buildOffstageNavigator(RootTab tab) {
-    return Offstage(
-      offstage: _currentTab != tab,
-      child: Navigator(
-        key: _navigatorKeys[tab],
-        onGenerateRoute: (settings) {
-          Widget page;
-          switch (tab) {
-            case RootTab.walk:
-              page = const WalkScreen();
-              break;
-            case RootTab.home:
-              page = const HomeScreen();
-              break;
-            case RootTab.settings:
-              page = const SettingsScreen();
-              break;
-          }
-          return MaterialPageRoute(builder: (_) => page);
-        },
-      ),
-    );
-  }
 }
-
-

@@ -13,9 +13,7 @@ ThemeData buildAppTheme() {
     ),
     cardTheme: CardThemeData(
       color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       elevation: 0,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     ),
@@ -30,14 +28,8 @@ ThemeData buildAppTheme() {
         fontWeight: FontWeight.w600,
         color: Colors.black87,
       ),
-      bodyMedium: TextStyle(
-        fontSize: 14,
-        color: Colors.black87,
-      ),
-      bodySmall: TextStyle(
-        fontSize: 12,
-        color: Colors.black54,
-      ),
+      bodyMedium: TextStyle(fontSize: 14, color: Colors.black87),
+      bodySmall: TextStyle(fontSize: 12, color: Colors.black54),
     ),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: Colors.white,
@@ -47,5 +39,3 @@ ThemeData buildAppTheme() {
     ),
   );
 }
-
-
