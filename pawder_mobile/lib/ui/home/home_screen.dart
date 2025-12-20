@@ -5,6 +5,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import 'home_view_model.dart';
+import '../widgets/dog_behavior_animation_widget.dart';
+import '../../models/dog_status_model.dart';
+import '../../services/bluetooth_service.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -49,7 +52,15 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           SliverToBoxAdapter(
-            child: _DogProfileCard(profile: homeVm.dogProfile),
+            child: _DogProfileCard(
+              profile: homeVm.dogProfile,
+              dogStatus: homeVm.currentDogStatus,
+              connectionModel: homeVm.connectionModel,
+              onScanPressed: homeVm.scanForDevices,
+              onConnectPressed: homeVm.connectToDevice,
+              onDisconnectPressed: homeVm.disconnectDevice,
+              bluetoothService: homeVm.bluetoothService,
+            ),
           ),
           SliverToBoxAdapter(child: _TodayStatsCard(stats: homeVm.todayStats)),
           SliverToBoxAdapter(
@@ -115,9 +126,23 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _DogProfileCard extends StatelessWidget {
-  const _DogProfileCard({required this.profile});
+  const _DogProfileCard({
+    required this.profile,
+    this.dogStatus,
+    required this.connectionModel,
+    required this.onScanPressed,
+    required this.onConnectPressed,
+    required this.onDisconnectPressed,
+    required this.bluetoothService,
+  });
 
   final DogProfile profile;
+  final DogStatusModel? dogStatus;
+  final DeviceConnectionModel connectionModel;
+  final VoidCallback onScanPressed;
+  final Function(String) onConnectPressed;
+  final VoidCallback onDisconnectPressed;
+  final BluetoothService bluetoothService;
 
   @override
   Widget build(BuildContext context) {
@@ -141,44 +166,212 @@ class _DogProfileCard extends StatelessWidget {
           ],
         ),
         padding: const EdgeInsets.all(20),
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'マイペット',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+            // Pet information and connection status row
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'マイペット',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '名前: ${profile.name}',
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      // Connection status
+                      Row(
+                        children: [
+                          Icon(
+                            connectionModel.isConnected
+                                ? Icons.bluetooth_connected
+                                : Icons.bluetooth_disabled,
+                            color: connectionModel.isConnected
+                                ? Colors.greenAccent
+                                : Colors.red.shade300,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              connectionModel.isConnected
+                                  ? connectionModel.deviceName ?? '接続済み'
+                                  : '未接続',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Battery indicator
+                      if (connectionModel.isConnected && dogStatus?.batteryLevel != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: BatteryIndicatorWidget(
+                            batteryLevel: dogStatus!.batteryLevel,
+                            width: 50,
+                            height: 20,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Dog behavior animation or profile picture
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                  ),
+                  child: dogStatus != null
+                      ? DogBehaviorAnimationWidget(
+                          behavior: dogStatus!.behavior,
+                          size: 60,
+                        )
+                      : const Icon(
+                          Icons.pets,
+                          size: 50,
+                          color: Colors.grey,
+                        ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Behavior status text
+            if (dogStatus != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  dogStatus!.behavior.displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 12),
+            // Connection actions
+            Row(
+              children: [
+                if (!connectionModel.isConnected) ...[
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: onScanPressed,
+                      icon: const Icon(Icons.search, size: 16),
+                      label: Text(
+                        bluetoothService.isScanning ? 'スキャン中...' : 'デバイス検索',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFFFF5F6D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '名前: ${profile.name}',
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: bluetoothService.availableDevices.isNotEmpty
+                          ? () => _showDeviceSelectionDialog(context)
+                          : null,
+                      icon: const Icon(Icons.bluetooth, size: 16),
+                      label: const Text(
+                        '接続',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFFFF5F6D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '冒険回数: 543回\n総距離: 2,432km',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
+                ] else
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: onDisconnectPressed,
+                      icon: const Icon(Icons.bluetooth_disabled, size: 16),
+                      label: const Text(
+                        '切断',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFFFF5F6D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Container(
-              width: 84,
-              height: 84,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-              ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeviceSelectionDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('デバイスを選択'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: bluetoothService.availableDevices.length,
+            itemBuilder: (context, index) {
+              final device = bluetoothService.availableDevices[index];
+              return ListTile(
+                leading: const Icon(Icons.bluetooth),
+                title: Text(device.platformName.isNotEmpty ? device.platformName : 'Unknown Device'),
+                subtitle: Text(device.remoteId.str),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onConnectPressed(device.remoteId.str);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('キャンセル'),
+          ),
+        ],
       ),
     );
   }

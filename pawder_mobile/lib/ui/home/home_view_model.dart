@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import '../../models/dog_status_model.dart';
+import '../../services/bluetooth_service.dart';
 
 class DogProfile {
   DogProfile({
@@ -78,20 +80,88 @@ class RecentWalk {
 class HomeViewModel extends ChangeNotifier {
   HomeViewModel() {
     _loadMockData();
+    _bluetoothService = BluetoothService();
+    _initializeBluetooth();
   }
 
+  late BluetoothService _bluetoothService;
   WalkViewType _selectedWalkView = WalkViewType.route;
   late DogProfile dogProfile;
   late TodayStats todayStats;
   late List<AchievementBadge> badges;
   late List<RecentWalk> recentWalks;
 
+  // Bluetooth関連のプロパティ
+  DogStatusModel? _currentDogStatus;
+  DeviceConnectionModel _connectionModel = DeviceConnectionModel(isConnected: false);
+
+  // Getters
   WalkViewType get selectedWalkView => _selectedWalkView;
+  BluetoothService get bluetoothService => _bluetoothService;
+  DogStatusModel? get currentDogStatus => _currentDogStatus;
+  DeviceConnectionModel get connectionModel => _connectionModel;
+
+  Future<void> _initializeBluetooth() async {
+    try {
+      await _bluetoothService.initialize();
+      
+      // Bluetooth サービスの状態変更を監視
+      _bluetoothService.addListener(_onBluetoothServiceChanged);
+    } catch (e) {
+      print('Bluetooth initialization error: $e');
+    }
+  }
+
+  void _onBluetoothServiceChanged() {
+    // BLE デバイスからのデータを取得
+    final dogStatusData = _bluetoothService.currentDogStatus;
+    if (dogStatusData != null) {
+      _currentDogStatus = DogStatusModel(
+        behavior: dogStatusData.behavior,
+        batteryLevel: dogStatusData.battery,
+      );
+    }
+
+    // デバイス接続状態を更新
+    _connectionModel = DeviceConnectionModel(
+      deviceId: _bluetoothService.connectedDevice?.remoteId.str,
+      deviceName: _bluetoothService.connectedDevice?.platformName,
+      isConnected: _bluetoothService.connectedDevice != null,
+      connectionStatus: _bluetoothService.connectionStatus,
+    );
+
+    notifyListeners();
+  }
 
   void selectWalkView(WalkViewType type) {
     if (_selectedWalkView == type) return;
     _selectedWalkView = type;
     notifyListeners();
+  }
+
+  Future<void> scanForDevices() async {
+    await _bluetoothService.startScanning();
+  }
+
+  Future<void> connectToDevice(String deviceId) async {
+    final devices = _bluetoothService.availableDevices;
+    final device = devices.firstWhere(
+      (d) => d.remoteId.str == deviceId,
+      orElse: () => throw Exception('デバイスが見つかりません'),
+    );
+    
+    await _bluetoothService.connectToDevice(device);
+  }
+
+  Future<void> disconnectDevice() async {
+    await _bluetoothService.disconnect();
+  }
+
+  @override
+  void dispose() {
+    _bluetoothService.removeListener(_onBluetoothServiceChanged);
+    _bluetoothService.dispose();
+    super.dispose();
   }
 
   void _loadMockData() {

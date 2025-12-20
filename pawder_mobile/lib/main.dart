@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'ui/activity/activity_screen.dart';
 import 'ui/activity/activity_view_model.dart';
@@ -13,7 +14,33 @@ import 'ui/settings/settings_screen.dart';
 import 'ui/settings/settings_view_model.dart';
 import 'ui/splash/splash_screen.dart';
 
+// Background task callback
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) {
+    print("Background task: $task");
+    
+    switch (task) {
+      case "bluetoothBackgroundTask":
+        // バックグラウンドでのBluetooth処理
+        // 注意: 実際のBluetoothアクセスはプラットフォームの制限により制限される場合があります
+        print("Bluetooth background task executed");
+        break;
+    }
+    
+    return Future.value(true);
+  });
+}
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Workmanager初期化
+  Workmanager().initialize(
+    callbackDispatcher,
+    isInDebugMode: true,
+  );
+  
   runApp(const PawderApp());
 }
 

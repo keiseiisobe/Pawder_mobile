@@ -45,5 +45,17 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Bluetooth permissions -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>このアプリは犬の行動データを取得するためにBluetooth接続が必要です</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>このアプリは犬の行動データを取得するためにBluetooth接続が必要です</string>
+	
+	<!-- Location permission for BLE scanning -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>このアプリはBluetooth LE デバイスを検出するために位置情報が必要です</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>このアプリはBluetooth LE デバイスを検出するために位置情報が必要です</string>
 </dict>
 </plist>
