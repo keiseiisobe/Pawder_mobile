@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
 
-import 'settings_view_model.dart';
 import '../../providers/bluetooth_repository_provider.dart';
 
 class DeviceConnectionModel {
@@ -19,12 +18,27 @@ class DeviceConnectionModel {
   final String? connectionStatus;
 }
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  // Settings ViewModelから移動したデータ
+  String ownerName = '山田 太郎';
+  String email = 'taro.yamada@example.com';
+  bool isAutoSyncEnabled = true;
+
+  void toggleAutoSync(bool value) {
+    setState(() {
+      isAutoSyncEnabled = value;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final vm = context.watch<SettingsViewModel>();
     final bluetoothProvider = context.watch<BluetoothRepositoryProvider>();
     final theme = Theme.of(context);
 
@@ -51,7 +65,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('名前'),
-                    subtitle: Text(vm.ownerName),
+                    subtitle: Text(ownerName),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       // TODO: Implement edit flow
@@ -61,7 +75,7 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('メールアドレス'),
-                    subtitle: Text(vm.email),
+                    subtitle: Text(email),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       // TODO: Implement edit flow
@@ -131,8 +145,8 @@ class SettingsScreen extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('自動同期'),
                     subtitle: const Text('アプリ起動時にデータを自動同期します'),
-                    value: vm.isAutoSyncEnabled,
-                    onChanged: vm.toggleAutoSync,
+                    value: isAutoSyncEnabled,
+                    onChanged: toggleAutoSync,
                   ),
                 ],
               ),

@@ -11,7 +11,6 @@ import 'ui/core/theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
 import 'ui/login/login_screen.dart';
 import 'ui/settings/settings_screen.dart';
-import 'ui/settings/settings_view_model.dart';
 import 'ui/splash/splash_screen.dart';
 
 // Background task callback
@@ -103,7 +102,6 @@ class PawderApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: authViewModel),
         ChangeNotifierProvider(create: (_) => BluetoothRepositoryProvider()),
         ChangeNotifierProvider(create: (_) => ActivityViewModel()),
-        ChangeNotifierProvider(create: (_) => SettingsViewModel()),
       ],
       child: MaterialApp.router(
         title: 'Pawder',

@@ -95,6 +95,7 @@ flutter:
     - assets/paw_white.png
     - assets/paw_black.png
     - assets/app_icon.png
+    - assets/lecker.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

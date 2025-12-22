@@ -210,13 +210,18 @@ class BluetoothRepository {
   void _handleReceivedData(List<int> data) {
     try {
       final dataString = String.fromCharCodes(data).trim();
+      print('Received BLE data (${data.length} bytes): $dataString');
       
       if (dataString.isNotEmpty) {
         final dogStatus = DogStatusData.fromString(dataString);
+        print('Successfully parsed dog status: ${dogStatus.behavior}, voltage: ${dogStatus.batteryVoltage}V, percentage: ${dogStatus.batteryPercentage}%');
         _dogStatusController.add(dogStatus);
+      } else {
+        print('Received empty data string');
       }
     } catch (e) {
       print('Data parsing error: $e');
+      print('Raw data: ${data.map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
     }
   }
 
@@ -340,38 +345,98 @@ class BluetoothRepository {
 /// DogStatusDataクラス - データ変換を担当
 class DogStatusData {
   final DogBehavior behavior;
-  final int? battery;
+  final double? batteryVoltage; // 電圧値を保持
+  final int? batteryPercentage; // 計算された残量％
 
-  DogStatusData({required this.behavior, this.battery});
+  DogStatusData({
+    required this.behavior, 
+    this.batteryVoltage,
+    this.batteryPercentage,
+  });
 
   factory DogStatusData.fromString(String data) {
+    print('Parsing BLE data: $data');
+    
     // JSON形式かどうかをチェック
     if (data.startsWith('{') && data.contains('behavior')) {
       try {
         final json = jsonDecode(data);
         final behaviorStr = json['behavior'] as String;
-        final battery = json['battery'] as int?;
+        
+        // バッテリー電圧値を取得
+        double? voltageValue;
+        if (json['battery'] != null) {
+          final batteryRaw = json['battery'];
+          if (batteryRaw is double) {
+            voltageValue = batteryRaw;
+          } else if (batteryRaw is int) {
+            voltageValue = batteryRaw.toDouble();
+          } else if (batteryRaw is String) {
+            voltageValue = double.tryParse(batteryRaw);
+          }
+        }
+        
+        // 電圧から残量％を計算
+        int? percentageValue;
+        if (voltageValue != null) {
+          percentageValue = _calculateBatteryPercentage(voltageValue);
+        }
+        
+        print('Parsed behavior: $behaviorStr, voltage: ${voltageValue}V, percentage: $percentageValue%');
         
         return DogStatusData(
           behavior: _behaviorFromString(behaviorStr),
-          battery: battery,
+          batteryVoltage: voltageValue,
+          batteryPercentage: percentageValue,
         );
       } catch (e) {
-        print('JSON parsing error: $e');
+        print('JSON parsing error: $e, falling back to string parsing');
         return DogStatusData(
           behavior: _behaviorFromString(data),
         );
       }
     } else {
       // 単純な文字列として処理
+      print('Parsing as simple string: $data');
       return DogStatusData(
         behavior: _behaviorFromString(data),
       );
     }
   }
 
+  /// リチウムバッテリーの電圧から残量％を計算
+  /// 3.7Vリチウムバッテリー（赤線）に基づいた電圧-残量の対応表
+  static int _calculateBatteryPercentage(double voltage) {
+    // 3.7Vリチウムバッテリーの電圧-残量対応表（グラフの赤線から読み取り）
+    if (voltage >= 4.10) return 100;
+    if (voltage >= 4.08) return 95;
+    if (voltage >= 4.05) return 90;
+    if (voltage >= 4.03) return 85;
+    if (voltage >= 4.01) return 80;
+    if (voltage >= 4.005) return 75;
+    if (voltage >= 4.00) return 70;
+    if (voltage >= 3.995) return 65;
+    if (voltage >= 3.99) return 60;
+    if (voltage >= 3.975) return 55;
+    if (voltage >= 3.95) return 50;
+    if (voltage >= 3.94) return 45;
+    if (voltage >= 3.92) return 40;
+    if (voltage >= 3.905) return 35;
+    if (voltage >= 3.91) return 30;
+    if (voltage >= 3.89) return 25;
+    if (voltage >= 3.87) return 20;
+    if (voltage >= 3.85) return 15;
+    if (voltage >= 3.81) return 10;
+    if (voltage >= 3.75) return 5;
+    if (voltage >= 3.30) return 1;
+    return 0;
+  }
+
   static DogBehavior _behaviorFromString(String str) {
-    switch (str.toLowerCase()) {
+    final cleanStr = str.toLowerCase().trim();
+    print('Converting behavior string: "$str" -> "$cleanStr"');
+    
+    switch (cleanStr) {
       case 'drinking':
         return DogBehavior.drinking;
       case 'playing':
@@ -387,14 +452,14 @@ class DogStatusData {
       case 'walking':
         return DogBehavior.walking;
       default:
-        print('Unknown behavior: $str, defaulting to resting');
+        print('Unknown behavior: "$str" (cleaned: "$cleanStr"), defaulting to resting');
         return DogBehavior.resting;
     }
   }
 
   @override
   String toString() {
-    return 'DogStatusData{behavior: $behavior, battery: $battery}';
+    return 'DogStatusData{behavior: ${behavior.name}, voltage: ${batteryVoltage}V, percentage: $batteryPercentage%}';
   }
 }
 

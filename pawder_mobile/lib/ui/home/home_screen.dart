@@ -145,7 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _loadMockData() {
     dogProfile = DogProfile(
-      name: 'ロック',
+      name: 'レッカー',
       ageYears: 4,
       avatarColor: const Color(0xFF1C1F2B),
     );
@@ -236,9 +236,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // DogStatusDataからDogStatusModelを作成
     DogStatusModel? dogStatusModel;
     if (bluetoothProvider.currentDogStatus != null) {
+      debugPrint('Current Dog Behavior: ${bluetoothProvider.currentDogStatus!.behavior}');
       dogStatusModel = DogStatusModel(
         behavior: bluetoothProvider.currentDogStatus!.behavior,
-        batteryLevel: bluetoothProvider.currentDogStatus!.battery,
+        batteryLevel: bluetoothProvider.currentDogStatus!.batteryPercentage,
       );
     }
 
@@ -403,18 +404,9 @@ class _DogProfileCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'マイペット',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
                       Text(
                         '名前: ${profile.name}',
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -468,29 +460,87 @@ class _DogProfileCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Dog behavior animation
-                if (dogStatus != null)
-                  GestureDetector(
-                    onTap: () => _showBehaviorDialog(context, dogStatus!.behavior),
-                    child: DogBehaviorAnimationWidget(
-                      behavior: dogStatus!.behavior,
-                      size: 80,
+                // Dog image and behavior animation
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Dog image background
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(40),
+                        child: Image.asset(
+                          'assets/lecker.jpg',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            // Fallback to pet icon if image fails to load
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.pets,
+                                color: Colors.white,
+                                size: 40,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  )
-                else
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.pets,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  ),
+                    // Behavior status overlay
+                    if (dogStatus != null)
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: () => _showBehaviorDialog(context, dogStatus!.behavior),
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: _getBehaviorColor(dogStatus!.behavior),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              _getBehaviorIcon(dogStatus!.behavior),
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -517,48 +567,8 @@ class _DogProfileCard extends StatelessWidget {
             // Connection actions
             Row(
               children: [
-                if (!connectionModel.isConnected) ...[
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: onScanPressed,
-                      icon: const Icon(Icons.search, size: 16),
-                      label: Text(
-                        bluetoothProvider.isScanning ? 'スキャン中...' : 'デバイス検索',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFFFF5F6D),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: bluetoothProvider.availableDevices.isNotEmpty
-                          ? () => _showDeviceSelectionDialog(context)
-                          : null,
-                      icon: const Icon(Icons.bluetooth, size: 16),
-                      label: const Text(
-                        '接続',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFFFF5F6D),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                ] else
-                  Expanded(
+                if (connectionModel.isConnected) ...[
+                Expanded(
                     child: ElevatedButton.icon(
                       onPressed: onDisconnectPressed,
                       icon: const Icon(Icons.bluetooth_disabled, size: 16),
@@ -576,44 +586,11 @@ class _DogProfileCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                ],
               ],
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showDeviceSelectionDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('デバイスを選択'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 300,
-          child: ListView.builder(
-            itemCount: bluetoothProvider.availableDevices.length,
-            itemBuilder: (context, index) {
-              final device = bluetoothProvider.availableDevices[index];
-              return ListTile(
-                leading: const Icon(Icons.bluetooth),
-                title: Text(device.platformName.isNotEmpty ? device.platformName : 'Unknown Device'),
-                subtitle: Text(device.remoteId.str),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onConnectPressed(device.remoteId.str);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('キャンセル'),
-          ),
-        ],
       ),
     );
   }
@@ -623,6 +600,43 @@ class _DogProfileCard extends StatelessWidget {
       context: context,
       builder: (context) => _BehaviorDialog(behavior: behavior),
     );
+  }
+
+  Color _getBehaviorColor(DogBehavior behavior) {
+    switch (behavior) {
+      case DogBehavior.playing:
+        return const Color(0xFF34D399); // Green
+      case DogBehavior.walking:
+      case DogBehavior.trotting:
+        return const Color(0xFF3B82F6); // Blue
+      case DogBehavior.sniffing:
+        return const Color(0xFFF59E0B); // Orange
+      case DogBehavior.drinking:
+        return const Color(0xFF06B6D4); // Cyan
+      case DogBehavior.resting:
+        return const Color(0xFF8B5CF6); // Purple
+      case DogBehavior.shaking:
+        return const Color(0xFFEF4444); // Red
+    }
+  }
+
+  IconData _getBehaviorIcon(DogBehavior behavior) {
+    switch (behavior) {
+      case DogBehavior.playing:
+        return Icons.sports_tennis;
+      case DogBehavior.walking:
+        return Icons.directions_walk;
+      case DogBehavior.trotting:
+        return Icons.directions_run;
+      case DogBehavior.sniffing:
+        return Icons.search;
+      case DogBehavior.drinking:
+        return Icons.water_drop;
+      case DogBehavior.resting:
+        return Icons.bedtime;
+      case DogBehavior.shaking:
+        return Icons.vibration;
+    }
   }
 }
 
@@ -772,9 +786,7 @@ class _BadgesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: GridView.builder(
+    return GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -788,7 +800,6 @@ class _BadgesGrid extends StatelessWidget {
           final badge = badges[index];
           return _BadgeCard(badge: badge);
         },
-      ),
     );
   }
 }
@@ -1158,7 +1169,7 @@ class _BehaviorDialogState extends State<_BehaviorDialog>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '愛犬が${widget.behavior.displayName.toLowerCase()}しています',
+                  '愛犬が${widget.behavior.displayName.toLowerCase()}',
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey.shade600,
