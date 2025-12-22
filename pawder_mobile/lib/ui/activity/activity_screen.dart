@@ -104,8 +104,8 @@ class _SummaryRow extends StatelessWidget {
   String _formatDuration(int minutes) {
     final h = minutes ~/ 60;
     final m = minutes % 60;
-    if (h == 0) return '${m}分';
-    return '${h}時間 ${m}分';
+    if (h == 0) return '$m分';
+    return '$h時間 $m分';
   }
 }
 
@@ -329,8 +329,8 @@ class _ActivityTile extends StatelessWidget {
   String _formatDuration(int minutes) {
     final h = minutes ~/ 60;
     final m = minutes % 60;
-    if (h == 0) return '${m}分';
-    return '${h}時間${m}分';
+    if (h == 0) return '$m分';
+    return '$h時間$m分';
   }
 }
 

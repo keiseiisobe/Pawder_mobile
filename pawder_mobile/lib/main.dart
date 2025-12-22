@@ -3,12 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
 
+import 'providers/bluetooth_repository_provider.dart';
 import 'ui/activity/activity_screen.dart';
 import 'ui/activity/activity_view_model.dart';
 import 'ui/auth/auth_view_model.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
-import 'ui/home/home_view_model.dart';
 import 'ui/login/login_screen.dart';
 import 'ui/settings/settings_screen.dart';
 import 'ui/settings/settings_view_model.dart';
@@ -19,7 +19,7 @@ import 'ui/splash/splash_screen.dart';
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) {
     print("Background task: $task");
-    
+
     switch (task) {
       case "bluetoothBackgroundTask":
         // バックグラウンドでのBluetooth処理
@@ -27,20 +27,17 @@ void callbackDispatcher() {
         print("Bluetooth background task executed");
         break;
     }
-    
+
     return Future.value(true);
   });
 }
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Workmanager初期化
-  Workmanager().initialize(
-    callbackDispatcher,
-    isInDebugMode: true,
-  );
-  
+  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
+
   runApp(const PawderApp());
 }
 
@@ -104,7 +101,7 @@ class PawderApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authViewModel),
-        ChangeNotifierProvider(create: (_) => HomeViewModel()),
+        ChangeNotifierProvider(create: (_) => BluetoothRepositoryProvider()),
         ChangeNotifierProvider(create: (_) => ActivityViewModel()),
         ChangeNotifierProvider(create: (_) => SettingsViewModel()),
       ],
@@ -132,7 +129,7 @@ class RootShell extends StatelessWidget {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),

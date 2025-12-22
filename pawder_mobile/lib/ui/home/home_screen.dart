@@ -4,86 +4,315 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
-import 'home_view_model.dart';
 import '../widgets/dog_behavior_animation_widget.dart';
 import '../../models/dog_status_model.dart';
-import '../../services/bluetooth_service.dart';
+import '../../providers/bluetooth_repository_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class DogProfile {
+  DogProfile({
+    required this.name,
+    required this.ageYears,
+    required this.avatarColor,
+  });
+
+  final String name;
+  final int ageYears;
+  final Color avatarColor;
+}
+
+class TodayStats {
+  TodayStats({
+    required this.distanceKm,
+    required this.durationMinutes,
+    required this.avgPacePerKm,
+    required this.calories,
+    required this.routePolyline,
+  });
+
+  final double distanceKm;
+  final int durationMinutes;
+  final Duration avgPacePerKm;
+  final int calories;
+  final List<LatLng> routePolyline;
+}
+
+class AchievementBadge {
+  AchievementBadge({
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.isUnlocked,
+    this.unlockedDate,
+  });
+
+  final String name;
+  final String description;
+  final IconData icon;
+  final bool isUnlocked;
+  final DateTime? unlockedDate;
+}
+
+enum WalkViewType { route, smell, play }
+
+class RecentWalk {
+  RecentWalk({
+    required this.date,
+    required this.routePolyline,
+    required this.smellPoints,
+    required this.playPoints,
+  });
+
+  final DateTime date;
+  final List<LatLng> routePolyline;
+  final List<LatLng> smellPoints;
+  final List<LatLng> playPoints;
+}
+
+class DeviceConnectionModel {
+  DeviceConnectionModel({
+    this.deviceId,
+    this.deviceName,
+    required this.isConnected,
+    this.connectionStatus,
+  });
+
+  final String? deviceId;
+  final String? deviceName;
+  final bool isConnected;
+  final String? connectionStatus;
+}
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  WalkViewType _selectedWalkView = WalkViewType.route;
+  late DogProfile dogProfile;
+  late TodayStats todayStats;
+  late List<AchievementBadge> badges;
+  late List<RecentWalk> recentWalks;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMockData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeBluetooth();
+    });
+  }
+
+  Future<void> _initializeBluetooth() async {
+    final bluetoothProvider = context.read<BluetoothRepositoryProvider>();
+    await bluetoothProvider.initializeBluetooth();
+  }
+
+  Future<void> _refresh() async {
+    // リフレッシュ処理
+    await Future.delayed(const Duration(seconds: 1));
+  }
+
+  void _selectWalkView(WalkViewType type) {
+    if (_selectedWalkView == type) return;
+    setState(() {
+      _selectedWalkView = type;
+    });
+  }
+
+  Future<void> _scanForDevices() async {
+    final bluetoothProvider = context.read<BluetoothRepositoryProvider>();
+    await bluetoothProvider.startScanning();
+  }
+
+  Future<void> _connectToDevice(String deviceId) async {
+    final bluetoothProvider = context.read<BluetoothRepositoryProvider>();
+    final devices = bluetoothProvider.availableDevices;
+    final device = devices.firstWhere(
+      (d) => d.remoteId.str == deviceId,
+      orElse: () => throw Exception('デバイスが見つかりません'),
+    );
+    
+    await bluetoothProvider.connectToDevice(device);
+  }
+
+  Future<void> _disconnectDevice() async {
+    final bluetoothProvider = context.read<BluetoothRepositoryProvider>();
+    await bluetoothProvider.disconnect();
+  }
+
+  void _loadMockData() {
+    dogProfile = DogProfile(
+      name: 'ロック',
+      ageYears: 4,
+      avatarColor: const Color(0xFF1C1F2B),
+    );
+
+    todayStats = TodayStats(
+      distanceKm: 4.2,
+      durationMinutes: 55,
+      avgPacePerKm: const Duration(minutes: 5, seconds: 12),
+      calories: 310,
+      routePolyline: const [
+        LatLng(35.681236, 139.767125),
+        LatLng(35.682, 139.77),
+        LatLng(35.683, 139.772),
+        LatLng(35.684, 139.769),
+      ],
+    );
+
+    badges = [
+      AchievementBadge(
+        name: '初回散歩',
+        description: '初めての散歩を完了しました',
+        icon: Icons.directions_walk,
+        isUnlocked: true,
+        unlockedDate: DateTime.now().subtract(const Duration(days: 30)),
+      ),
+      AchievementBadge(
+        name: 'アクティブ',
+        description: '7日連続で散歩しました',
+        icon: Icons.local_fire_department,
+        isUnlocked: true,
+        unlockedDate: DateTime.now().subtract(const Duration(days: 7)),
+      ),
+      AchievementBadge(
+        name: '距離の達人',
+        description: '10km歩きました',
+        icon: Icons.emoji_events,
+        isUnlocked: false,
+      ),
+    ];
+
+    recentWalks = [
+      RecentWalk(
+        date: DateTime.now().subtract(const Duration(days: 1)),
+        routePolyline: const [
+          LatLng(35.681236, 139.767125),
+          LatLng(35.682, 139.77),
+          LatLng(35.683, 139.772),
+          LatLng(35.684, 139.769),
+        ],
+        smellPoints: const [
+          LatLng(35.682, 139.77),
+          LatLng(35.683, 139.772),
+        ],
+        playPoints: const [
+          LatLng(35.684, 139.769),
+        ],
+      ),
+      RecentWalk(
+        date: DateTime.now().subtract(const Duration(days: 2)),
+        routePolyline: const [
+          LatLng(35.680, 139.765),
+          LatLng(35.681, 139.768),
+          LatLng(35.682, 139.771),
+        ],
+        smellPoints: const [
+          LatLng(35.681, 139.768),
+        ],
+        playPoints: const [
+          LatLng(35.682, 139.771),
+        ],
+      ),
+    ];
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final homeVm = context.watch<HomeViewModel>();
+    final bluetoothProvider = context.watch<BluetoothRepositoryProvider>();
     final theme = Theme.of(context);
 
+    // BluetoothProviderからの状態を使用してDeviceConnectionModelを作成
+    final connectionModel = DeviceConnectionModel(
+      deviceId: bluetoothProvider.deviceId,
+      deviceName: bluetoothProvider.deviceName,
+      isConnected: bluetoothProvider.isConnected,
+      connectionStatus: bluetoothProvider.connectionStatus,
+    );
+
+    // DogStatusDataからDogStatusModelを作成
+    DogStatusModel? dogStatusModel;
+    if (bluetoothProvider.currentDogStatus != null) {
+      dogStatusModel = DogStatusModel(
+        behavior: bluetoothProvider.currentDogStatus!.behavior,
+        batteryLevel: bluetoothProvider.currentDogStatus!.battery,
+      );
+    }
+
     return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xFF1C1F2B),
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF1C1F2B),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ユーザー名 Lv. 42',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        _buildLevelProgress(),
-                      ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ユーザー名 Lv. 42',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildLevelProgress(),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: _DogProfileCard(
-              profile: homeVm.dogProfile,
-              dogStatus: homeVm.currentDogStatus,
-              connectionModel: homeVm.connectionModel,
-              onScanPressed: homeVm.scanForDevices,
-              onConnectPressed: homeVm.connectToDevice,
-              onDisconnectPressed: homeVm.disconnectDevice,
-              bluetoothService: homeVm.bluetoothService,
+            SliverToBoxAdapter(
+              child: _DogProfileCard(
+                profile: dogProfile,
+                dogStatus: dogStatusModel,
+                connectionModel: connectionModel,
+                onScanPressed: _scanForDevices,
+                onConnectPressed: _connectToDevice,
+                onDisconnectPressed: _disconnectDevice,
+                bluetoothProvider: bluetoothProvider,
+              ),
             ),
-          ),
-          SliverToBoxAdapter(child: _TodayStatsCard(stats: homeVm.todayStats)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text('最近の散歩', style: theme.textTheme.titleMedium),
+            SliverToBoxAdapter(child: _TodayStatsCard(stats: todayStats)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text('最近の散歩', style: theme.textTheme.titleMedium),
+              ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: _RecentWalksCard(
-              walks: homeVm.recentWalks,
-              selectedView: homeVm.selectedWalkView,
-              onViewSelected: homeVm.selectWalkView,
+            SliverToBoxAdapter(
+              child: _RecentWalksCard(
+                walks: recentWalks,
+                selectedView: _selectedWalkView,
+                onViewSelected: _selectWalkView,
+              ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text('バッジ', style: theme.textTheme.titleMedium),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text('バッジ', style: theme.textTheme.titleMedium),
+              ),
             ),
-          ),
-          SliverToBoxAdapter(child: _BadgesGrid(badges: homeVm.badges)),
-        ],
+            SliverToBoxAdapter(child: _BadgesGrid(badges: badges)),
+          ],
+        ),
       ),
     );
   }
@@ -133,7 +362,7 @@ class _DogProfileCard extends StatelessWidget {
     required this.onScanPressed,
     required this.onConnectPressed,
     required this.onDisconnectPressed,
-    required this.bluetoothService,
+    required this.bluetoothProvider,
   });
 
   final DogProfile profile;
@@ -142,7 +371,7 @@ class _DogProfileCard extends StatelessWidget {
   final VoidCallback onScanPressed;
   final Function(String) onConnectPressed;
   final VoidCallback onDisconnectPressed;
-  final BluetoothService bluetoothService;
+  final BluetoothRepositoryProvider bluetoothProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +397,6 @@ class _DogProfileCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Pet information and connection status row
             Row(
               children: [
                 Expanded(
@@ -189,7 +417,6 @@ class _DogProfileCard extends StatelessWidget {
                         style: const TextStyle(color: Colors.white, fontSize: 16),
                       ),
                       const SizedBox(height: 4),
-                      // Connection status
                       Row(
                         children: [
                           Icon(
@@ -216,47 +443,62 @@ class _DogProfileCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      // Battery indicator
                       if (connectionModel.isConnected && dogStatus?.batteryLevel != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: BatteryIndicatorWidget(
-                            batteryLevel: dogStatus!.batteryLevel,
-                            width: 50,
-                            height: 20,
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.battery_full,
+                                color: Colors.greenAccent,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${dogStatus!.batteryLevel}%',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Dog behavior animation or profile picture
-                Container(
-                  width: 84,
-                  height: 84,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
+                const SizedBox(width: 12),
+                // Dog behavior animation
+                if (dogStatus != null)
+                  GestureDetector(
+                    onTap: () => _showBehaviorDialog(context, dogStatus!.behavior),
+                    child: DogBehaviorAnimationWidget(
+                      behavior: dogStatus!.behavior,
+                      size: 80,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.pets,
+                      color: Colors.white,
+                      size: 40,
+                    ),
                   ),
-                  child: dogStatus != null
-                      ? DogBehaviorAnimationWidget(
-                          behavior: dogStatus!.behavior,
-                          size: 60,
-                        )
-                      : const Icon(
-                          Icons.pets,
-                          size: 50,
-                          color: Colors.grey,
-                        ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
-            // Behavior status text
+            // Current behavior display
             if (dogStatus != null)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -281,7 +523,7 @@ class _DogProfileCard extends StatelessWidget {
                       onPressed: onScanPressed,
                       icon: const Icon(Icons.search, size: 16),
                       label: Text(
-                        bluetoothService.isScanning ? 'スキャン中...' : 'デバイス検索',
+                        bluetoothProvider.isScanning ? 'スキャン中...' : 'デバイス検索',
                         style: const TextStyle(fontSize: 12),
                       ),
                       style: ElevatedButton.styleFrom(
@@ -297,7 +539,7 @@ class _DogProfileCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: bluetoothService.availableDevices.isNotEmpty
+                      onPressed: bluetoothProvider.availableDevices.isNotEmpty
                           ? () => _showDeviceSelectionDialog(context)
                           : null,
                       icon: const Icon(Icons.bluetooth, size: 16),
@@ -351,9 +593,9 @@ class _DogProfileCard extends StatelessWidget {
           width: double.maxFinite,
           height: 300,
           child: ListView.builder(
-            itemCount: bluetoothService.availableDevices.length,
+            itemCount: bluetoothProvider.availableDevices.length,
             itemBuilder: (context, index) {
-              final device = bluetoothService.availableDevices[index];
+              final device = bluetoothProvider.availableDevices[index];
               return ListTile(
                 leading: const Icon(Icons.bluetooth),
                 title: Text(device.platformName.isNotEmpty ? device.platformName : 'Unknown Device'),
@@ -375,6 +617,13 @@ class _DogProfileCard extends StatelessWidget {
       ),
     );
   }
+
+  void _showBehaviorDialog(BuildContext context, DogBehavior behavior) {
+    showDialog(
+      context: context,
+      builder: (context) => _BehaviorDialog(behavior: behavior),
+    );
+  }
 }
 
 class _TodayStatsCard extends StatelessWidget {
@@ -384,6 +633,11 @@ class _TodayStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final distanceText = stats.distanceKm.toStringAsFixed(1);
+    final timeText = '${stats.durationMinutes}分';
+    final paceText = '${stats.avgPacePerKm.inMinutes}:${(stats.avgPacePerKm.inSeconds % 60).toString().padLeft(2, '0')}';
+    final caloriesText = '${stats.calories}';
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Padding(
@@ -392,8 +646,11 @@ class _TodayStatsCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '今日のアクティビティ',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              '今日の活動',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -401,40 +658,40 @@ class _TodayStatsCard extends StatelessWidget {
                 Expanded(
                   child: _StatCard(
                     title: '距離',
-                    value: '${stats.distanceKm.toStringAsFixed(1)} km',
-                    accent: const LinearGradient(
-                      colors: [Color(0xFF4C70FF), Color(0xFF7FB5FF)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    value: distanceText,
+                    unit: 'km',
+                    accent: const Color(0xFF4C70FF),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    children: [
-                      _StatCard(
-                        title: 'ペース',
-                        value: _formatPace(stats.avgPacePerKm),
-                        accent: const LinearGradient(
-                          colors: [Color(0xFFFF8A3D), Color(0xFFFF5F6D)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        compact: true,
-                      ),
-                      const SizedBox(height: 12),
-                      _StatCard(
-                        title: '時間',
-                        value: _formatDuration(stats.durationMinutes),
-                        accent: const LinearGradient(
-                          colors: [Color(0xFF34D399), Color(0xFF10B981)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        compact: true,
-                      ),
-                    ],
+                  child: _StatCard(
+                    title: '時間',
+                    value: timeText,
+                    unit: '',
+                    accent: const Color(0xFF34D399),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatCard(
+                    title: 'ペース',
+                    value: paceText,
+                    unit: '/km',
+                    accent: const Color(0xFFFF8A3D),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StatCard(
+                    title: 'カロリー',
+                    value: caloriesText,
+                    unit: 'cal',
+                    accent: const Color(0xFFFF5F6D),
                   ),
                 ),
               ],
@@ -444,71 +701,63 @@ class _TodayStatsCard extends StatelessWidget {
       ),
     );
   }
-
-  String _formatPace(Duration pace) {
-    final m = pace.inMinutes;
-    final s = pace.inSeconds % 60;
-    return '$m\'${s.toString().padLeft(2, '0')}"/km';
-  }
-
-  String _formatDuration(int minutes) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h == 0) return '${m}分';
-    return '${h}時間 ${m}分';
-  }
 }
 
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
     required this.value,
+    required this.unit,
     required this.accent,
-    this.compact = false,
   });
 
   final String title;
   final String value;
-  final Gradient accent;
-  final bool compact;
+  final String unit;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: compact ? 78 : 160,
-      decoration: BoxDecoration(
-        gradient: accent,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withOpacity(0.3)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: compact
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.spaceBetween,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: compact ? 18 : 26,
-              fontWeight: FontWeight.bold,
-            ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: accent,
+                ),
+              ),
+              if (unit.isNotEmpty)
+                Text(
+                  ' $unit',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -523,22 +772,71 @@ class _BadgesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
+          childAspectRatio: 1,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 0.9,
         ),
         itemCount: badges.length,
         itemBuilder: (context, index) {
           final badge = badges[index];
           return _BadgeCard(badge: badge);
         },
+      ),
+    );
+  }
+}
+
+class _BadgeCard extends StatelessWidget {
+  const _BadgeCard({required this.badge});
+
+  final AchievementBadge badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: badge.isUnlocked ? 4 : 1,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          gradient: badge.isUnlocked
+              ? const LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: badge.isUnlocked ? null : Colors.grey.shade200,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              badge.icon,
+              size: 32,
+              color: badge.isUnlocked ? Colors.white : Colors.grey.shade500,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              badge.name,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: badge.isUnlocked ? Colors.white : Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -553,12 +851,20 @@ class _RecentWalksCard extends StatelessWidget {
 
   final List<RecentWalk> walks;
   final WalkViewType selectedView;
-  final ValueChanged<WalkViewType> onViewSelected;
+  final Function(WalkViewType) onViewSelected;
 
   @override
   Widget build(BuildContext context) {
     if (walks.isEmpty) {
-      return const SizedBox.shrink();
+      return const Card(
+        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Center(
+            child: Text('散歩の記録がありません'),
+          ),
+        ),
+      );
     }
 
     final latestWalk = walks.first;
@@ -636,7 +942,7 @@ class _RecentWalksCard extends StatelessWidget {
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
-                                    Icons.pets,
+                                    Icons.sports_tennis,
                                     color: Colors.white,
                                     size: 12,
                                   ),
@@ -657,185 +963,137 @@ class _RecentWalksCard extends StatelessWidget {
 }
 
 class _WalkViewTabs extends StatelessWidget {
-  const _WalkViewTabs({required this.selectedView, required this.onSelect});
+  const _WalkViewTabs({
+    required this.selectedView,
+    required this.onSelect,
+  });
 
   final WalkViewType selectedView;
-  final ValueChanged<WalkViewType> onSelect;
+  final Function(WalkViewType) onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          _buildTab('ルート', WalkViewType.route),
-          _buildTab('匂い', WalkViewType.smell),
-          _buildTab('遊び', WalkViewType.play),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String label, WalkViewType type) {
-    final isSelected = selectedView == type;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => onSelect(type),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.black : Colors.grey.shade600,
-              fontSize: 14,
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: _WalkViewTab(
+            label: 'ルート',
+            icon: Icons.route,
+            isSelected: selectedView == WalkViewType.route,
+            onTap: () => onSelect(WalkViewType.route),
           ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _WalkViewTab(
+            label: '匂い嗅ぎ',
+            icon: Icons.location_on,
+            isSelected: selectedView == WalkViewType.smell,
+            onTap: () => onSelect(WalkViewType.smell),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _WalkViewTab(
+            label: '遊び',
+            icon: Icons.sports_tennis,
+            isSelected: selectedView == WalkViewType.play,
+            onTap: () => onSelect(WalkViewType.play),
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _BadgeCard extends StatelessWidget {
-  const _BadgeCard({required this.badge});
+class _WalkViewTab extends StatelessWidget {
+  const _WalkViewTab({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
 
-  final AchievementBadge badge;
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: badge.isUnlocked
-          ? () {
-              HapticFeedback.mediumImpact();
-              _showBadgeSuccessDialog(context, badge);
-            }
-          : null,
-      child: Card(
-        color: badge.isUnlocked ? Colors.white : Colors.grey.shade100,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                badge.icon,
-                size: 32,
-                color: badge.isUnlocked
-                    ? const Color(0xFFFF8A3D)
-                    : Colors.grey.shade400,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFF8A3D) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: isSelected ? Colors.white : Colors.grey.shade600,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
-              const SizedBox(height: 8),
-              Text(
-                badge.name,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: badge.isUnlocked
-                      ? Colors.black87
-                      : Colors.grey.shade600,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
-
-  void _showBadgeSuccessDialog(BuildContext context, AchievementBadge badge) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'バッジ達成ダイアログ',
-      barrierColor: Colors.black.withOpacity(0.7),
-      transitionDuration: const Duration(milliseconds: 300),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return _BadgeSuccessDialog(badge: badge);
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.5, end: 1.0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.elasticOut),
-            ),
-            child: child,
-          ),
-        );
-      },
-    );
-  }
 }
 
-class _BadgeSuccessDialog extends StatefulWidget {
-  const _BadgeSuccessDialog({required this.badge});
+class _BehaviorDialog extends StatefulWidget {
+  const _BehaviorDialog({required this.behavior});
 
-  final AchievementBadge badge;
+  final DogBehavior behavior;
 
   @override
-  State<_BadgeSuccessDialog> createState() => _BadgeSuccessDialogState();
+  State<_BehaviorDialog> createState() => _BehaviorDialogState();
 }
 
-class _BadgeSuccessDialogState extends State<_BadgeSuccessDialog>
-    with SingleTickerProviderStateMixin {
+class _BehaviorDialogState extends State<_BehaviorDialog>
+    with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _rotationAnimation;
   late Animation<double> _opacityAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.elasticOut),
-      ),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.6, curve: Curves.elasticOut),
+    ));
 
-    _rotationAnimation = Tween<double>(begin: -0.2, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
-    );
-
-    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
-      ),
-    );
+    _opacityAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
+    ));
 
     _controller.forward();
 
-    // 振動を2回実行（Duolingo風）
     Future.delayed(const Duration(milliseconds: 100), () {
       HapticFeedback.mediumImpact();
     });
@@ -879,66 +1137,33 @@ class _BadgeSuccessDialogState extends State<_BadgeSuccessDialog>
                   builder: (context, child) {
                     return Transform.scale(
                       scale: _scaleAnimation.value,
-                      child: Transform.rotate(
-                        angle: _rotationAnimation.value,
-                        child: Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF8A3D), Color(0xFFFF5F6D)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFF8A3D).withOpacity(0.4),
-                                blurRadius: 20,
-                                spreadRadius: 5,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            widget.badge.icon,
-                            size: 64,
-                            color: Colors.white,
-                          ),
+                      child: Opacity(
+                        opacity: _opacityAnimation.value,
+                        child: DogBehaviorAnimationWidget(
+                          behavior: widget.behavior,
+                          size: 120,
                         ),
                       ),
                     );
                   },
                 ),
                 const SizedBox(height: 24),
-                AnimatedBuilder(
-                  animation: _opacityAnimation,
-                  builder: (context, child) {
-                    return Opacity(
-                      opacity: _opacityAnimation.value,
-                      child: Column(
-                        children: [
-                          Text(
-                            '${widget.badge.name}達成！',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            widget.badge.description,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade600,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                Text(
+                  widget.behavior.displayName,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1C1F2B),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '愛犬が${widget.behavior.displayName.toLowerCase()}しています',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
