@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/dog_status_model.dart';
+import '../models/stored_data_models.dart';
+import '../database/database_helper.dart';
 
 /// Bluetooth Repository - データアクセス層
 /// FlutterBlue Plusライブラリとの直接的なやり取りを担当
@@ -16,6 +18,10 @@ class BluetoothRepository {
   BluetoothCharacteristic? _targetCharacteristic;
   StreamSubscription<List<int>>? _characteristicSubscription;
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
+
+  // 行動追跡用
+  final BehaviorTracker _behaviorTracker = BehaviorTracker();
+  final DatabaseHelper _databaseHelper = DatabaseHelper.instance;
 
   // データストリーム
   final StreamController<DogStatusData> _dogStatusController = 
@@ -215,6 +221,10 @@ class BluetoothRepository {
       if (dataString.isNotEmpty) {
         final dogStatus = DogStatusData.fromString(dataString);
         print('Successfully parsed dog status: ${dogStatus.behavior}, voltage: ${dogStatus.batteryVoltage}V, percentage: ${dogStatus.batteryPercentage}%');
+        
+        // データベースに保存
+        _saveBehaviorData(dogStatus);
+        
         _dogStatusController.add(dogStatus);
       } else {
         print('Received empty data string');
@@ -225,9 +235,68 @@ class BluetoothRepository {
     }
   }
 
+  /// 行動データをデータベースに保存
+  Future<void> _saveBehaviorData(DogStatusData dogStatus) async {
+    try {
+      final now = DateTime.now();
+      final behaviorName = dogStatus.behavior.name;
+
+      // 行動が変更された場合、前の行動を終了して新しい行動を開始
+      if (_behaviorTracker.isBehaviorChanged(behaviorName)) {
+        // 前の行動を終了してデータベースに保存
+        if (_behaviorTracker.currentBehavior != null) {
+          final previousDuration = _behaviorTracker.endCurrentBehavior();
+          if (previousDuration != null && previousDuration > 5) { // 5秒以上の行動のみ保存
+            final previousBehaviorData = StoredDogBehaviorData(
+              behavior: _behaviorTracker.currentBehavior!,
+              timestamp: _behaviorTracker.behaviorStartTime ?? now,
+              batteryVoltage: dogStatus.batteryVoltage,
+              batteryPercentage: dogStatus.batteryPercentage,
+              durationSeconds: previousDuration,
+              createdAt: now,
+            );
+            await _databaseHelper.insertBehaviorData(previousBehaviorData.toMap());
+          }
+        }
+        
+        // 新しい行動を開始
+        _behaviorTracker.startBehavior(behaviorName);
+      }
+
+      // バッテリーデータを保存（5分間隔で保存）
+      if (dogStatus.batteryVoltage != null && dogStatus.batteryPercentage != null) {
+        final lastBatteryData = await _databaseHelper.getLatestBatteryData();
+        bool shouldSaveBattery = true;
+        
+        if (lastBatteryData != null) {
+          final lastTimestamp = DateTime.fromMillisecondsSinceEpoch(lastBatteryData['timestamp']);
+          final timeDifference = now.difference(lastTimestamp);
+          shouldSaveBattery = timeDifference.inMinutes >= 5; // 5分間隔
+        }
+
+        if (shouldSaveBattery) {
+          final batteryData = StoredBatteryData(
+            voltage: dogStatus.batteryVoltage!,
+            percentage: dogStatus.batteryPercentage!,
+            timestamp: now,
+            createdAt: now,
+          );
+          await _databaseHelper.insertBatteryData(batteryData.toMap());
+        }
+      }
+
+      print('Data saved to database: behavior=${behaviorName}, duration=${_behaviorTracker.getCurrentBehaviorDuration()}s');
+    } catch (e) {
+      print('Database save error: $e');
+    }
+  }
+
   /// 切断処理
   Future<void> disconnect() async {
     try {
+      // 現在の行動を終了してデータベースに保存
+      await _finalizeBehavior();
+      
       _characteristicSubscription?.cancel();
       _connectionSubscription?.cancel();
       
@@ -244,8 +313,32 @@ class BluetoothRepository {
     }
   }
 
+  /// 現在の行動を終了してデータベースに保存
+  Future<void> _finalizeBehavior() async {
+    if (_behaviorTracker.currentBehavior != null) {
+      try {
+        final duration = _behaviorTracker.endCurrentBehavior();
+        if (duration != null && duration > 5) { // 5秒以上の行動のみ保存
+          final behaviorData = StoredDogBehaviorData(
+            behavior: _behaviorTracker.currentBehavior!,
+            timestamp: _behaviorTracker.behaviorStartTime ?? DateTime.now(),
+            durationSeconds: duration,
+            createdAt: DateTime.now(),
+          );
+          await _databaseHelper.insertBehaviorData(behaviorData.toMap());
+          print('Finalized behavior: ${behaviorData.behavior}, duration: ${duration}s');
+        }
+      } catch (e) {
+        print('Error finalizing behavior: $e');
+      }
+    }
+  }
+
   /// 切断時の処理
   void _handleDisconnection() {
+    // 現在の行動を終了（非同期処理として実行）
+    _finalizeBehavior();
+    
     _connectedDevice = null;
     _targetCharacteristic = null;
     _characteristicSubscription?.cancel();
@@ -333,6 +426,9 @@ class BluetoothRepository {
 
   /// リソースの解放
   void dispose() {
+    // 現在の行動を終了
+    _finalizeBehavior();
+    
     _characteristicSubscription?.cancel();
     _connectionSubscription?.cancel();
     _dogStatusController.close();
@@ -340,6 +436,9 @@ class BluetoothRepository {
     _scanResultsController.close();
     FlutterBluePlus.stopScan();
   }
+
+  /// 現在の行動情報を取得
+  BehaviorTracker get behaviorTracker => _behaviorTracker;
 }
 
 /// DogStatusDataクラス - データ変換を担当

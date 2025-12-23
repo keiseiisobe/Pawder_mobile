@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../repositories/bluetooth_repository.dart';
+import '../services/data_service.dart';
 
 /// BluetoothRepositoryの状態を管理するProvider
 class BluetoothRepositoryProvider extends ChangeNotifier {
@@ -13,6 +14,7 @@ class BluetoothRepositoryProvider extends ChangeNotifier {
   }
 
   late BluetoothRepository _repository;
+  final DataService _dataService = DataService();
   StreamSubscription<DogStatusData>? _dogStatusSubscription;
   StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
   StreamSubscription<List<BluetoothDevice>>? _scanResultsSubscription;
@@ -44,6 +46,10 @@ class BluetoothRepositoryProvider extends ChangeNotifier {
     _dogStatusSubscription = _repository.dogStatusStream.listen(
       (dogStatus) {
         _currentDogStatus = dogStatus;
+        
+        // データサービスに新しいデータが来たことを通知
+        _dataService.notifyDataChanged();
+        
         notifyListeners();
       },
     );

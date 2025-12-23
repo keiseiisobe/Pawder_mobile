@@ -1,4 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+
+import '../../services/data_service.dart';
+import '../../models/stored_data_models.dart';
 
 class ActivitySummary {
   ActivitySummary({
@@ -38,107 +42,135 @@ class ActivityLog {
 enum ActivityPeriod { week, month, year, all }
 
 class ActivityViewModel extends ChangeNotifier {
-  ActivityViewModel() {
-    _loadMock();
-  }
+  final DataService _dataService = DataService();
+  
+  StreamSubscription<ActivityScreenStats>? _activityStatsSubscription;
+  StreamSubscription<List<ActivityChartPoint>>? _chartDataSubscription;
+  StreamSubscription<List<ActivityLogEntry>>? _activityLogsSubscription;
 
   ActivityPeriod _selectedPeriod = ActivityPeriod.week;
-  late ActivitySummary summary;
-  late List<ActivityPoint> weekly;
-  late List<ActivityPoint> monthly;
-  late List<ActivityPoint> yearly;
-  late List<ActivityLog> logs;
+  ActivitySummary _summary = ActivitySummary(
+    totalDistanceKm: 0.0,
+    totalDurationMinutes: 0,
+    avgPacePerKm: const Duration(minutes: 10),
+  );
+  List<ActivityPoint> _currentPoints = [];
+  List<ActivityLog> _logs = [];
+  bool _isLoading = true;
+
+  ActivityViewModel() {
+    _initialize();
+  }
+
+  void _initialize() async {
+    // データサービスを初期化
+    await _dataService.initialize();
+
+    // キャッシュされたデータがあれば即座に表示
+    if (_dataService.activityStats != null) {
+      _updateSummaryFromStats(_dataService.activityStats!);
+    }
+    if (_dataService.weeklyData.isNotEmpty) {
+      _updatePointsFromChartData(_dataService.weeklyData);
+    }
+    if (_dataService.activityLogs.isNotEmpty) {
+      _updateLogsFromEntries(_dataService.activityLogs);
+    }
+
+    // ストリームからの更新を監視
+    _activityStatsSubscription = _dataService.activityStatsStream.listen((stats) {
+      _updateSummaryFromStats(stats);
+      _isLoading = false;
+      notifyListeners();
+    });
+
+    _chartDataSubscription = _dataService.chartDataStream.listen((chartData) {
+      _updatePointsFromChartData(chartData);
+      notifyListeners();
+    });
+
+    _activityLogsSubscription = _dataService.activityLogsStream.listen((logEntries) {
+      _updateLogsFromEntries(logEntries);
+      notifyListeners();
+    });
+
+    // 初回データロード
+    await _dataService.refreshAllData();
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void _updateSummaryFromStats(ActivityScreenStats stats) {
+    _summary = ActivitySummary(
+      totalDistanceKm: stats.totalDistanceKm,
+      totalDurationMinutes: stats.totalDurationMinutes,
+      avgPacePerKm: stats.avgPacePerKm,
+    );
+  }
+
+  void _updatePointsFromChartData(List<ActivityChartPoint> chartData) {
+    _currentPoints = chartData.map((point) => ActivityPoint(
+      point.label,
+      point.distanceKm,
+    )).toList();
+  }
+
+  void _updateLogsFromEntries(List<ActivityLogEntry> entries) {
+    _logs = entries.map((entry) => ActivityLog(
+      title: entry.title,
+      distanceKm: entry.distanceKm,
+      pacePerKm: entry.pacePerKm,
+      durationMinutes: entry.durationMinutes,
+      dateLabel: entry.dateLabel,
+    )).toList();
+  }
 
   ActivityPeriod get selectedPeriod => _selectedPeriod;
-
-  List<ActivityPoint> get currentPoints {
-    switch (_selectedPeriod) {
-      case ActivityPeriod.week:
-        return weekly;
-      case ActivityPeriod.month:
-        return monthly;
-      case ActivityPeriod.year:
-        return yearly;
-      case ActivityPeriod.all:
-        return yearly; // すべての場合は年データを表示
-    }
-  }
+  ActivitySummary get summary => _summary;
+  List<ActivityPoint> get currentPoints => _currentPoints;
+  List<ActivityLog> get logs => _logs;
+  bool get isLoading => _isLoading;
 
   void selectPeriod(ActivityPeriod period) {
     if (_selectedPeriod == period) return;
     _selectedPeriod = period;
+    
+    // 期間に応じてデータを更新
+    List<ActivityChartPoint> chartData;
+    switch (period) {
+      case ActivityPeriod.week:
+        chartData = _dataService.weeklyData;
+        break;
+      case ActivityPeriod.month:
+        chartData = _dataService.monthlyData;
+        break;
+      case ActivityPeriod.year:
+      case ActivityPeriod.all:
+        chartData = _dataService.yearlyData;
+        break;
+    }
+    
+    _updatePointsFromChartData(chartData);
     notifyListeners();
   }
 
-  void _loadMock() {
-    summary = ActivitySummary(
-      totalDistanceKm: 28.4,
-      totalDurationMinutes: 235,
-      avgPacePerKm: const Duration(minutes: 5, seconds: 12),
-    );
+  /// 手動でデータを更新
+  Future<void> refreshData() async {
+    _isLoading = true;
+    notifyListeners();
+    
+    await _dataService.forceRefresh();
+    
+    _isLoading = false;
+    notifyListeners();
+  }
 
-    weekly = [
-      ActivityPoint('月', 3.8),
-      ActivityPoint('火', 4.5),
-      ActivityPoint('水', 0.0),
-      ActivityPoint('木', 6.2),
-      ActivityPoint('金', 5.0),
-      ActivityPoint('土', 4.9),
-      ActivityPoint('日', 4.0),
-    ];
-
-    monthly = [
-      ActivityPoint('週1', 28.4),
-      ActivityPoint('週2', 32.1),
-      ActivityPoint('週3', 25.8),
-      ActivityPoint('週4', 30.5),
-    ];
-
-    yearly = [
-      ActivityPoint('1月', 125.0),
-      ActivityPoint('2月', 98.5),
-      ActivityPoint('3月', 142.3),
-      ActivityPoint('4月', 156.8),
-      ActivityPoint('5月', 168.2),
-      ActivityPoint('6月', 175.5),
-      ActivityPoint('7月', 182.1),
-      ActivityPoint('8月', 190.3),
-      ActivityPoint('9月', 165.4),
-      ActivityPoint('10月', 178.9),
-      ActivityPoint('11月', 172.6),
-      ActivityPoint('12月', 185.2),
-    ];
-
-    logs = [
-      ActivityLog(
-        title: 'イブニングラン',
-        distanceKm: 6.2,
-        pacePerKm: const Duration(minutes: 5, seconds: 5),
-        durationMinutes: 32,
-        dateLabel: '今日 18:30',
-      ),
-      ActivityLog(
-        title: 'モーニングジョグ',
-        distanceKm: 4.5,
-        pacePerKm: const Duration(minutes: 5, seconds: 25),
-        durationMinutes: 24,
-        dateLabel: '昨日 7:10',
-      ),
-      ActivityLog(
-        title: 'リカバリーウォーク',
-        distanceKm: 3.1,
-        pacePerKm: const Duration(minutes: 9, seconds: 10),
-        durationMinutes: 28,
-        dateLabel: '金曜 20:05',
-      ),
-      ActivityLog(
-        title: 'テンポ走',
-        distanceKm: 5.8,
-        pacePerKm: const Duration(minutes: 4, seconds: 48),
-        durationMinutes: 28,
-        dateLabel: '木曜 19:00',
-      ),
-    ];
+  @override
+  void dispose() {
+    _activityStatsSubscription?.cancel();
+    _chartDataSubscription?.cancel();
+    _activityLogsSubscription?.cancel();
+    super.dispose();
   }
 }
 

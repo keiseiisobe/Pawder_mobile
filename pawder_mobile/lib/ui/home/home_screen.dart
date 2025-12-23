@@ -7,66 +7,9 @@ import 'package:provider/provider.dart';
 import '../widgets/dog_behavior_animation_widget.dart';
 import '../../models/dog_status_model.dart';
 import '../../providers/bluetooth_repository_provider.dart';
-
-class DogProfile {
-  DogProfile({
-    required this.name,
-    required this.ageYears,
-    required this.avatarColor,
-  });
-
-  final String name;
-  final int ageYears;
-  final Color avatarColor;
-}
-
-class TodayStats {
-  TodayStats({
-    required this.distanceKm,
-    required this.durationMinutes,
-    required this.avgPacePerKm,
-    required this.calories,
-    required this.routePolyline,
-  });
-
-  final double distanceKm;
-  final int durationMinutes;
-  final Duration avgPacePerKm;
-  final int calories;
-  final List<LatLng> routePolyline;
-}
-
-class AchievementBadge {
-  AchievementBadge({
-    required this.name,
-    required this.description,
-    required this.icon,
-    required this.isUnlocked,
-    this.unlockedDate,
-  });
-
-  final String name;
-  final String description;
-  final IconData icon;
-  final bool isUnlocked;
-  final DateTime? unlockedDate;
-}
+import '../../viewmodels/home_view_model.dart';
 
 enum WalkViewType { route, smell, play }
-
-class RecentWalk {
-  RecentWalk({
-    required this.date,
-    required this.routePolyline,
-    required this.smellPoints,
-    required this.playPoints,
-  });
-
-  final DateTime date;
-  final List<LatLng> routePolyline;
-  final List<LatLng> smellPoints;
-  final List<LatLng> playPoints;
-}
 
 class DeviceConnectionModel {
   DeviceConnectionModel({
@@ -82,24 +25,31 @@ class DeviceConnectionModel {
   final String? connectionStatus;
 }
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => HomeViewModel(),
+      child: const _HomeScreenContent(),
+    );
+  }
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenContent extends StatefulWidget {
+  const _HomeScreenContent();
+
+  @override
+  State<_HomeScreenContent> createState() => _HomeScreenContentState();
+}
+
+class _HomeScreenContentState extends State<_HomeScreenContent> {
   WalkViewType _selectedWalkView = WalkViewType.route;
-  late DogProfile dogProfile;
-  late TodayStats todayStats;
-  late List<AchievementBadge> badges;
-  late List<RecentWalk> recentWalks;
 
   @override
   void initState() {
     super.initState();
-    _loadMockData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeBluetooth();
     });
@@ -111,8 +61,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refresh() async {
-    // リフレッシュ処理
-    await Future.delayed(const Duration(seconds: 1));
+    final homeViewModel = context.read<HomeViewModel>();
+    await homeViewModel.refreshData();
   }
 
   void _selectWalkView(WalkViewType type) {
@@ -143,86 +93,10 @@ class _HomeScreenState extends State<HomeScreen> {
     await bluetoothProvider.disconnect();
   }
 
-  void _loadMockData() {
-    dogProfile = DogProfile(
-      name: 'レッカー',
-      ageYears: 4,
-      avatarColor: const Color(0xFF1C1F2B),
-    );
-
-    todayStats = TodayStats(
-      distanceKm: 4.2,
-      durationMinutes: 55,
-      avgPacePerKm: const Duration(minutes: 5, seconds: 12),
-      calories: 310,
-      routePolyline: const [
-        LatLng(35.681236, 139.767125),
-        LatLng(35.682, 139.77),
-        LatLng(35.683, 139.772),
-        LatLng(35.684, 139.769),
-      ],
-    );
-
-    badges = [
-      AchievementBadge(
-        name: '初回散歩',
-        description: '初めての散歩を完了しました',
-        icon: Icons.directions_walk,
-        isUnlocked: true,
-        unlockedDate: DateTime.now().subtract(const Duration(days: 30)),
-      ),
-      AchievementBadge(
-        name: 'アクティブ',
-        description: '7日連続で散歩しました',
-        icon: Icons.local_fire_department,
-        isUnlocked: true,
-        unlockedDate: DateTime.now().subtract(const Duration(days: 7)),
-      ),
-      AchievementBadge(
-        name: '距離の達人',
-        description: '10km歩きました',
-        icon: Icons.emoji_events,
-        isUnlocked: false,
-      ),
-    ];
-
-    recentWalks = [
-      RecentWalk(
-        date: DateTime.now().subtract(const Duration(days: 1)),
-        routePolyline: const [
-          LatLng(35.681236, 139.767125),
-          LatLng(35.682, 139.77),
-          LatLng(35.683, 139.772),
-          LatLng(35.684, 139.769),
-        ],
-        smellPoints: const [
-          LatLng(35.682, 139.77),
-          LatLng(35.683, 139.772),
-        ],
-        playPoints: const [
-          LatLng(35.684, 139.769),
-        ],
-      ),
-      RecentWalk(
-        date: DateTime.now().subtract(const Duration(days: 2)),
-        routePolyline: const [
-          LatLng(35.680, 139.765),
-          LatLng(35.681, 139.768),
-          LatLng(35.682, 139.771),
-        ],
-        smellPoints: const [
-          LatLng(35.681, 139.768),
-        ],
-        playPoints: const [
-          LatLng(35.682, 139.771),
-        ],
-      ),
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     final bluetoothProvider = context.watch<BluetoothRepositoryProvider>();
+    final homeViewModel = context.watch<HomeViewModel>();
     final theme = Theme.of(context);
 
     // BluetoothProviderからの状態を使用してDeviceConnectionModelを作成
@@ -233,7 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
       connectionStatus: bluetoothProvider.connectionStatus,
     );
 
-    // DogStatusDataからDogStatusModelを作成
+    // DogStatusDataからDogStatusModelを作成 (BLEからのリアルタイムデータ)
+    // もしくはHomeViewModelからの現在の行動データを使用
     DogStatusModel? dogStatusModel;
     if (bluetoothProvider.currentDogStatus != null) {
       debugPrint('Current Dog Behavior: ${bluetoothProvider.currentDogStatus!.behavior}');
@@ -241,6 +116,20 @@ class _HomeScreenState extends State<HomeScreen> {
         behavior: bluetoothProvider.currentDogStatus!.behavior,
         batteryLevel: bluetoothProvider.currentDogStatus!.batteryPercentage,
       );
+    } else {
+      // BLEデータが無い場合はViewModelから取得
+      final behavior = DogBehavior.values.firstWhere(
+        (b) => b.name == homeViewModel.currentBehavior,
+        orElse: () => DogBehavior.resting,
+      );
+      dogStatusModel = DogStatusModel(
+        behavior: behavior,
+        batteryLevel: homeViewModel.batteryPercentage,
+      );
+    }
+
+    if (homeViewModel.isLoading) {
+      return const Center(child: CircularProgressIndicator());
     }
 
     return SafeArea(
@@ -282,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             SliverToBoxAdapter(
               child: _DogProfileCard(
-                profile: dogProfile,
+                profile: homeViewModel.dogProfile,
                 dogStatus: dogStatusModel,
                 connectionModel: connectionModel,
                 onScanPressed: _scanForDevices,
@@ -291,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 bluetoothProvider: bluetoothProvider,
               ),
             ),
-            SliverToBoxAdapter(child: _TodayStatsCard(stats: todayStats)),
+            SliverToBoxAdapter(child: _TodayStatsCard(stats: homeViewModel.todayStats)),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -300,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             SliverToBoxAdapter(
               child: _RecentWalksCard(
-                walks: recentWalks,
+                walks: homeViewModel.recentWalks,
                 selectedView: _selectedWalkView,
                 onViewSelected: _selectWalkView,
               ),
@@ -311,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text('バッジ', style: theme.textTheme.titleMedium),
               ),
             ),
-            SliverToBoxAdapter(child: _BadgesGrid(badges: badges)),
+            SliverToBoxAdapter(child: _BadgesGrid(badges: homeViewModel.badges)),
           ],
         ),
       ),

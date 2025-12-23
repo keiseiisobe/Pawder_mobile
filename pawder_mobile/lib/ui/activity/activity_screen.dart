@@ -21,20 +21,25 @@ class ActivityScreen extends StatelessWidget {
           ),
           _PeriodTabs(selectedPeriod: vm.selectedPeriod, onSelect: vm.selectPeriod),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _SummaryRow(summary: vm.summary),
-                const SizedBox(height: 16),
-                _WeeklyChart(points: vm.currentPoints, period: vm.selectedPeriod),
-                const SizedBox(height: 16),
-                Text(
-                  '最近のアクティビティ',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                ...vm.logs.map((log) => _ActivityTile(log: log)),
-              ],
+            child: RefreshIndicator(
+              onRefresh: vm.refreshData,
+              child: vm.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        _SummaryRow(summary: vm.summary),
+                        const SizedBox(height: 16),
+                        _WeeklyChart(points: vm.currentPoints, period: vm.selectedPeriod),
+                        const SizedBox(height: 16),
+                        Text(
+                          '最近のアクティビティ',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        ...vm.logs.map((log) => _ActivityTile(log: log)),
+                      ],
+                    ),
             ),
           ),
         ],

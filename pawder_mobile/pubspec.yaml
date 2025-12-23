@@ -63,6 +63,9 @@ dependencies:
   # Background processing
   workmanager: ^0.5.2
 
+  # SQLite database
+  sqflite: ^2.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
