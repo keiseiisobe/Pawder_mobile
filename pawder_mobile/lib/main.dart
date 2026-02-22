@@ -1,42 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import 'package:workmanager/workmanager.dart';
 
-import 'providers/bluetooth_repository_provider.dart';
 import 'ui/activity/activity_screen.dart';
-import 'ui/activity/activity_view_model.dart';
-import 'ui/auth/auth_view_model.dart';
 import 'ui/core/theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
-import 'ui/login/login_screen.dart';
 import 'ui/settings/settings_screen.dart';
 import 'ui/splash/splash_screen.dart';
 
-// Background task callback
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) {
-    print("Background task: $task");
-
-    switch (task) {
-      case "bluetoothBackgroundTask":
-        // バックグラウンドでのBluetooth処理
-        // 注意: 実際のBluetoothアクセスはプラットフォームの制限により制限される場合があります
-        print("Bluetooth background task executed");
-        break;
-    }
-
-    return Future.value(true);
-  });
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Workmanager初期化
-  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-
   runApp(const PawderApp());
 }
 
@@ -45,8 +17,6 @@ class PawderApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authViewModel = AuthViewModel();
-
     final router = GoRouter(
       initialLocation: '/splash',
       routes: [
@@ -54,11 +24,6 @@ class PawderApp extends StatelessWidget {
           path: '/splash',
           name: 'splash',
           builder: (context, state) => const SplashScreen(),
-        ),
-        GoRoute(
-          path: '/login',
-          name: 'login',
-          builder: (context, state) => const LoginScreen(),
         ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) {
@@ -97,18 +62,11 @@ class PawderApp extends StatelessWidget {
       ],
     );
 
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: authViewModel),
-        ChangeNotifierProvider(create: (_) => BluetoothRepositoryProvider()),
-        ChangeNotifierProvider(create: (_) => ActivityViewModel()),
-      ],
-      child: MaterialApp.router(
-        title: 'Pawder',
-        debugShowCheckedModeBanner: false,
-        theme: buildAppTheme(),
-        routerConfig: router,
-      ),
+    return MaterialApp.router(
+      title: 'Pawder',
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
+      routerConfig: router,
     );
   }
 }

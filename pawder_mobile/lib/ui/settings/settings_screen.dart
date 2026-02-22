@@ -1,22 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:provider/provider.dart';
-
-import '../../providers/bluetooth_repository_provider.dart';
-
-class DeviceConnectionModel {
-  DeviceConnectionModel({
-    this.deviceId,
-    this.deviceName,
-    required this.isConnected,
-    this.connectionStatus,
-  });
-
-  final String? deviceId;
-  final String? deviceName;
-  final bool isConnected;
-  final String? connectionStatus;
-}
+import '../../models/dog_profile.dart';
+import '../../services/mock_data_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,409 +10,473 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Settings ViewModelから移動したデータ
-  String ownerName = '山田 太郎';
-  String email = 'taro.yamada@example.com';
-  bool isAutoSyncEnabled = true;
+  final _mockData = MockDataService();
+  late DogProfile _dogProfile;
+  late List<Accessory> _accessories;
+  String _selectedAccessory = '🎀';
 
-  void toggleAutoSync(bool value) {
-    setState(() {
-      isAutoSyncEnabled = value;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _dogProfile = _mockData.getDogProfile();
+    _accessories = _mockData.getAccessories();
+    _selectedAccessory = _dogProfile.currentAccessory;
   }
 
   @override
   Widget build(BuildContext context) {
-    final bluetoothProvider = context.watch<BluetoothRepositoryProvider>();
-    final theme = Theme.of(context);
-
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('設定', style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'アカウント',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('名前'),
-                    subtitle: Text(ownerName),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      // TODO: Implement edit flow
-                    },
-                  ),
-                  const Divider(),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('メールアドレス'),
-                    subtitle: Text(email),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      // TODO: Implement edit flow
-                    },
-                  ),
-                ],
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            // ヘッダー
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Text(
+                  '設定',
+                  style: Theme.of(context).textTheme.displayMedium,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Bluetooth デバイス',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+
+            // プロフィールカード
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF111111), Color(0xFF333333)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        Text(
+                          _dogProfile.avatarEmoji,
+                          style: const TextStyle(fontSize: 80),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 10,
+                          child: Text(
+                            _selectedAccessory,
+                            style: const TextStyle(fontSize: 40),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  // 接続状態表示
-                  _BluetoothConnectionStatus(
-                    bluetoothProvider: bluetoothProvider,
-                  ),
-                  const Divider(),
-                  // デバイススキャンボタン
-                  _ScanButton(
-                    isScanning: bluetoothProvider.isScanning,
-                    onScan: () => bluetoothProvider.startScanning(),
-                  ),
-                  const SizedBox(height: 8),
-                  // Bluetooth診断ボタン
-                  _DiagnosticsButton(
-                    onDiagnostics: () => _showDiagnostics(context, bluetoothProvider),
-                  ),
-                  const SizedBox(height: 8),
-                  // 利用可能なデバイスリスト
-                  _AvailableDevicesList(
-                    devices: bluetoothProvider.availableDevices,
-                    onConnect: (device) => bluetoothProvider.connectToDevice(device),
-                    connectedDeviceId: bluetoothProvider.deviceId,
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Text(
+                      _dogProfile.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _dogProfile.breed,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildProfileStat('${_dogProfile.ageYears}歳', '年齢'),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.white24,
+                        ),
+                        _buildProfileStat('${_dogProfile.weightKg}kg', '体重'),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.white24,
+                        ),
+                        _buildProfileStat('Lv.${_dogProfile.level}', 'レベル'),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'アプリ設定',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+
+            // 着せ替えセクション
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Row(
+                  children: [
+                    Text(
+                      '着せ替え',
+                      style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('自動同期'),
-                    subtitle: const Text('アプリ起動時にデータを自動同期します'),
-                    value: isAutoSyncEnabled,
-                    onChanged: toggleAutoSync,
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00D084),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_accessories.where((a) => a.isUnlocked).length}/${_accessories.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Future<void> _showDiagnostics(BuildContext context, BluetoothRepositoryProvider provider) async {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bluetooth診断'),
-        content: FutureBuilder<String>(
-          future: _getDiagnostics(provider),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 50,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            
-            if (snapshot.hasError) {
-              return Text('エラー: ${snapshot.error}');
-            }
-            
-            return SingleChildScrollView(
-              child: Text(
-                snapshot.data ?? '診断情報を取得できませんでした',
-                style: const TextStyle(fontFamily: 'monospace'),
+            // 着せ替えグリッド
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.85,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final accessory = _accessories[index];
+                    return _buildAccessoryCard(accessory);
+                  },
+                  childCount: _accessories.length,
+                ),
               ),
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
-    );
-  }
+            ),
 
-  Future<String> _getDiagnostics(BluetoothRepositoryProvider provider) async {
-    final buffer = StringBuffer();
-    
-    try {
-      buffer.writeln('=== Bluetooth 診断情報 ===\n');
-      
-      // Bluetooth状態
-      final isBluetoothOn = await provider.checkBluetoothStatus();
-      buffer.writeln('Bluetooth状態: ${isBluetoothOn ? "ON" : "OFF"}');
-      
-      // 接続状態
-      buffer.writeln('接続状態: ${provider.isConnected ? "接続済み" : "未接続"}');
-      
-      if (provider.isConnected) {
-        buffer.writeln('接続デバイス: ${provider.deviceName ?? "不明"}');
-        buffer.writeln('デバイスID: ${provider.deviceId ?? "不明"}');
-      }
-      
-      // スキャン状態
-      buffer.writeln('スキャン中: ${provider.isScanning ? "はい" : "いいえ"}');
-      
-      // 利用可能デバイス数
-      buffer.writeln('発見されたデバイス数: ${provider.availableDevices.length}');
-      
-      if (provider.availableDevices.isNotEmpty) {
-        buffer.writeln('\n=== 発見されたデバイス ===');
-        for (int i = 0; i < provider.availableDevices.length; i++) {
-          final device = provider.availableDevices[i];
-          buffer.writeln('${i + 1}. ${device.platformName.isNotEmpty ? device.platformName : "Unknown"}');
-          buffer.writeln('   ID: ${device.remoteId.str}');
-        }
-      }
-      
-      // アダプタ状態
-      try {
-        final adapterState = await FlutterBluePlus.adapterState.first;
-        buffer.writeln('\nアダプタ状態: $adapterState');
-      } catch (e) {
-        buffer.writeln('\nアダプタ状態取得エラー: $e');
-      }
-      
-    } catch (e) {
-      buffer.writeln('診断エラー: $e');
-    }
-    
-    return buffer.toString();
-  }
-}
+            // 統計セクション
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
+                child: Text(
+                  '通算記録',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+            ),
 
-class _BluetoothConnectionStatus extends StatelessWidget {
-  const _BluetoothConnectionStatus({
-    required this.bluetoothProvider,
-  });
+            // 統計カード
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildTotalStatRow('🐾', '総散歩回数', '${_dogProfile.totalWalks}回'),
+                      const Divider(height: 32),
+                      _buildTotalStatRow('🏃', '総距離', '${_dogProfile.totalDistanceKm}km'),
+                      const Divider(height: 32),
+                      _buildTotalStatRow('🌈', '多様性スコア', '${_dogProfile.diversityScore}'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
-  final BluetoothRepositoryProvider bluetoothProvider;
+            // その他の設定
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 32, 20, 12),
+                child: Text(
+                  'その他',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+            ),
 
-  @override
-  Widget build(BuildContext context) {
-    if (bluetoothProvider.isConnected) {
-      return ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(
-          Icons.bluetooth_connected,
-          color: Colors.green,
-        ),
-        title: Text(bluetoothProvider.deviceName ?? '不明なデバイス'),
-        subtitle: Text('接続済み • ${bluetoothProvider.deviceId}'),
-        trailing: ElevatedButton(
-          onPressed: () => bluetoothProvider.disconnect(),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(60, 32),
-          ),
-          child: const Text(
-            '切断',
-            style: TextStyle(fontSize: 12),
-          ),
-        ),
-      );
-    } else {
-      return ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(
-          Icons.bluetooth_disabled,
-          color: Colors.grey,
-        ),
-        title: const Text('デバイス未接続'),
-        subtitle: const Text('下記のリストからデバイスを選択してください'),
-      );
-    }
-  }
-}
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildSettingItem('通知設定', Icons.notifications_outlined),
+                      const Divider(height: 1, indent: 60),
+                      _buildSettingItem('プライバシー設定', Icons.lock_outline),
+                      const Divider(height: 1, indent: 60),
+                      _buildSettingItem('ヘルプ', Icons.help_outline),
+                      const Divider(height: 1, indent: 60),
+                      _buildSettingItem('アプリについて', Icons.info_outline),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
-class _ScanButton extends StatelessWidget {
-  const _ScanButton({
-    required this.isScanning,
-    required this.onScan,
-  });
-
-  final bool isScanning;
-  final VoidCallback onScan;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: isScanning ? null : onScan,
-        icon: isScanning
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.search),
-        label: Text(isScanning ? 'スキャン中...' : 'デバイスを検索'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
         ),
       ),
     );
   }
-}
 
-class _DiagnosticsButton extends StatelessWidget {
-  const _DiagnosticsButton({
-    required this.onDiagnostics,
-  });
-
-  final VoidCallback onDiagnostics;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onDiagnostics,
-        icon: const Icon(Icons.info_outline),
-        label: const Text('Bluetooth診断'),
-        style: OutlinedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AvailableDevicesList extends StatelessWidget {
-  const _AvailableDevicesList({
-    required this.devices,
-    required this.onConnect,
-    this.connectedDeviceId,
-  });
-
-  final List<BluetoothDevice> devices;
-  final Function(BluetoothDevice) onConnect;
-  final String? connectedDeviceId;
-
-  @override
-  Widget build(BuildContext context) {
-    if (devices.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        child: const Text(
-          'デバイスが見つかりません。\n「デバイスを検索」ボタンをタップしてスキャンしてください。',
-          style: TextStyle(color: Colors.grey),
-          textAlign: TextAlign.center,
-        ),
-      );
-    }
-
+  Widget _buildProfileStat(String value, String label) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '利用可能なデバイス',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 8),
-        ...devices.map((device) => _DeviceListItem(
-              device: device,
-              onConnect: () => onConnect(device),
-              isConnected: device.remoteId.str == connectedDeviceId,
-            )),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
+        ),
       ],
     );
   }
-}
 
-class _DeviceListItem extends StatelessWidget {
-  const _DeviceListItem({
-    required this.device,
-    required this.onConnect,
-    required this.isConnected,
-  });
+  Widget _buildAccessoryCard(Accessory accessory) {
+    final isSelected = _selectedAccessory == accessory.emoji;
+    final isLocked = !accessory.isUnlocked;
 
-  final BluetoothDevice device;
-  final VoidCallback onConnect;
-  final bool isConnected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        leading: const Icon(Icons.bluetooth),
-        title: Text(
-          device.platformName.isNotEmpty ? device.platformName : 'Unknown Device',
-          style: const TextStyle(fontWeight: FontWeight.w500),
+    return GestureDetector(
+      onTap: accessory.isUnlocked
+          ? () {
+              setState(() {
+                _selectedAccessory = accessory.emoji;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${accessory.name}を装備しました！'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            }
+          : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: isSelected
+              ? Border.all(color: const Color(0xFF00D084), width: 3)
+              : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF00D084).withOpacity(0.3),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
         ),
-        subtitle: Text(device.remoteId.str),
-        trailing: ElevatedButton(
-          onPressed: isConnected ? null : onConnect,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isConnected ? Colors.grey : Colors.blue,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(60, 32),
-          ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Opacity(
+                    opacity: isLocked ? 0.3 : 1.0,
+                    child: Text(
+                      accessory.emoji,
+                      style: const TextStyle(
+                        fontSize: 48,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      accessory.name,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isLocked ? Colors.black38 : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isLocked)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.lock,
+                      color: Colors.black38,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: _getRarityColor(accessory.rarity),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _getRarityLabel(accessory.rarity),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTotalStatRow(String emoji, String label, String value) {
+    return Row(
+      children: [
+        Text(
+          emoji,
+          style: const TextStyle(fontSize: 28),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
           child: Text(
-            isConnected ? '接続済み' : '接続',
-            style: const TextStyle(fontSize: 12),
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSettingItem(String title, IconData icon) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$titleは開発中です'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.black54),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.black26),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  Color _getRarityColor(String rarity) {
+    switch (rarity) {
+      case 'common':
+        return Colors.grey;
+      case 'rare':
+        return Colors.blue;
+      case 'epic':
+        return Colors.purple;
+      case 'legendary':
+        return Colors.amber;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getRarityLabel(String rarity) {
+    switch (rarity) {
+      case 'common':
+        return 'C';
+      case 'rare':
+        return 'R';
+      case 'epic':
+        return 'E';
+      case 'legendary':
+        return 'L';
+      default:
+        return '';
+    }
   }
 }

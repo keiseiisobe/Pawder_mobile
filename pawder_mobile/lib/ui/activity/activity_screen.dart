@@ -1,286 +1,99 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import '../../models/walk_activity.dart';
+import '../../models/achievement.dart';
+import '../../services/mock_data_service.dart';
+import 'walk_detail_screen.dart';
+import '../health/health_screen.dart';
+import 'package:intl/intl.dart';
 
-import 'activity_view_model.dart';
-
-class ActivityScreen extends StatelessWidget {
+class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final vm = context.watch<ActivityViewModel>();
-    final theme = Theme.of(context);
-
-    return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('アクティビティ', style: theme.textTheme.headlineSmall),
-          ),
-          _PeriodTabs(selectedPeriod: vm.selectedPeriod, onSelect: vm.selectPeriod),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: vm.refreshData,
-              child: vm.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        _SummaryRow(summary: vm.summary),
-                        const SizedBox(height: 16),
-                        _WeeklyChart(points: vm.currentPoints, period: vm.selectedPeriod),
-                        const SizedBox(height: 16),
-                        Text(
-                          '最近のアクティビティ',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        ...vm.logs.map((log) => _ActivityTile(log: log)),
-                      ],
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  State<ActivityScreen> createState() => _ActivityScreenState();
 }
 
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.summary});
+class _ActivityScreenState extends State<ActivityScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final _mockData = MockDataService();
+  late List<WalkActivity> _walkHistory;
+  late List<Achievement> _achievements;
+  late Map<String, dynamic> _monthlyStats;
 
-  final ActivitySummary summary;
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _walkHistory = _mockData.getWalkHistory();
+    _achievements = _mockData.getAchievements();
+    _monthlyStats = _mockData.getMonthlyStats();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            title: '今週の距離',
-            value: '${summary.totalDistanceKm.toStringAsFixed(1)} km',
-            accent: const LinearGradient(
-              colors: [Color(0xFF4C70FF), Color(0xFF7FB5FF)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            children: [
-              _StatCard(
-                title: '平均ペース',
-                value: _formatPace(summary.avgPacePerKm),
-                accent: const LinearGradient(
-                  colors: [Color(0xFFFF8A3D), Color(0xFFFF5F6D)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                compact: true,
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ヘッダー
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Text(
+                'アクティビティ',
+                style: Theme.of(context).textTheme.displayMedium,
               ),
-              const SizedBox(height: 12),
-              _StatCard(
-                title: '合計時間',
-                value: _formatDuration(summary.totalDurationMinutes),
-                accent: const LinearGradient(
-                  colors: [Color(0xFF34D399), Color(0xFF10B981)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                compact: true,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatPace(Duration pace) {
-    final m = pace.inMinutes;
-    final s = pace.inSeconds % 60;
-    return '$m\'${s.toString().padLeft(2, '0')}"/km';
-    }
-
-  String _formatDuration(int minutes) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h == 0) return '$m分';
-    return '$h時間 $m分';
-  }
-}
-
-class _PeriodTabs extends StatelessWidget {
-  const _PeriodTabs({
-    required this.selectedPeriod,
-    required this.onSelect,
-  });
-
-  final ActivityPeriod selectedPeriod;
-  final ValueChanged<ActivityPeriod> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          _buildTab('週', ActivityPeriod.week),
-          _buildTab('月', ActivityPeriod.month),
-          _buildTab('年', ActivityPeriod.year),
-          _buildTab('すべて', ActivityPeriod.all),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String label, ActivityPeriod period) {
-    final isSelected = selectedPeriod == period;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => onSelect(period),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.black : Colors.grey.shade600,
-              fontSize: 14,
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
-class _WeeklyChart extends StatelessWidget {
-  const _WeeklyChart({required this.points, required this.period});
-
-  final List<ActivityPoint> points;
-  final ActivityPeriod period;
-
-  @override
-  Widget build(BuildContext context) {
-    final maxValue = points
-        .map((e) => e.valueKm)
-        .fold<double>(0, (p, c) => c > p ? c : p);
-    
-    // 期間に応じて適切な最大値を設定
-    double maxY;
-    if (maxValue == 0) {
-      maxY = 10;
-    } else {
-      // 最大値の1.2倍を上限として、適切な単位で丸める
-      double targetMax = maxValue * 1.2;
-      double step;
-      
-      if (period == ActivityPeriod.week) {
-        // 週間: 1km単位
-        step = 1.0;
-        maxY = (targetMax / step).ceil() * step;
-        if (maxY < 4) maxY = 4;
-        if (maxY > 20) maxY = 20;
-      } else if (period == ActivityPeriod.month) {
-        // 月間: 5km単位
-        step = 5.0;
-        maxY = (targetMax / step).ceil() * step;
-        if (maxY < 10) maxY = 10;
-      } else {
-        // 年・すべて: 20km単位
-        step = 20.0;
-        maxY = (targetMax / step).ceil() * step;
-        if (maxY < 50) maxY = 50;
-      }
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _getChartTitle(),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            // タブバー
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 180,
-              child: BarChart(
-                BarChartData(
-                  borderData: FlBorderData(show: false),
-                  gridData: FlGridData(show: true, drawVerticalLine: false),
-                  titlesData: FlTitlesData(
-                    leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: true, reservedSize: 32),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, _) {
-                          final i = value.toInt();
-                          if (i < 0 || i >= points.length) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              points[i].label,
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                          );
-                        },
-                        reservedSize: 24,
-                      ),
-                    ),
-                    rightTitles:
-                        const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles:
-                        const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                child: TabBar(
+                  controller: _tabController,
+                  indicator: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  maxY: maxY,
-                  barGroups: [
-                    for (int i = 0; i < points.length; i++)
-                      BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            toY: points[i].valueKm,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF8A3D), Color(0xFFFF5F6D)],
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                            width: 14,
-                          ),
-                        ],
-                      ),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.black54,
+                  labelStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  labelPadding: EdgeInsets.zero,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  tabs: const [
+                    Tab(text: '履歴'),
+                    Tab(text: '統計'),
+                    Tab(text: 'バッジ'),
                   ],
                 ),
+              ),
+            ),
+
+            // タブビュー
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildHistoryTab(),
+                  _buildStatsTab(),
+                  _buildAchievementsTab(),
+                ],
               ),
             ),
           ],
@@ -289,109 +102,507 @@ class _WeeklyChart extends StatelessWidget {
     );
   }
 
-  String _getChartTitle() {
-    switch (period) {
-      case ActivityPeriod.week:
-        return '週間チャート';
-      case ActivityPeriod.month:
-        return '月間チャート';
-      case ActivityPeriod.year:
-        return '年間チャート';
-      case ActivityPeriod.all:
-        return 'すべてのチャート';
-    }
+  Widget _buildHistoryTab() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _walkHistory.length,
+      itemBuilder: (context, index) {
+        final walk = _walkHistory[index];
+        return _buildWalkCard(walk);
+      },
+    );
   }
-}
 
-class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.log});
+  Widget _buildWalkCard(WalkActivity walk) {
+    final dateFormat = DateFormat('M月d日');
+    final timeFormat = DateFormat('HH:mm');
 
-  final ActivityLog log;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFF1C1F2B),
-          child: Icon(Icons.run_circle, color: Colors.white),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => WalkDetailScreen(walk: walk),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      walk.moodEmoji,
+                      style: const TextStyle(fontSize: 32),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            dateFormat.format(walk.date),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            timeFormat.format(walk.date),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Colors.black54,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.black26),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    _buildWalkStat('距離', '${walk.distanceKm} km'),
+                    const SizedBox(width: 24),
+                    _buildWalkStat('時間', '${walk.durationMinutes} 分'),
+                    const SizedBox(width: 24),
+                    _buildWalkStat('ペース', '${walk.paceMinPerKm.toStringAsFixed(1)} min/km'),
+                  ],
+                ),
+                if (walk.sniffingPoints.any((p) => p.foundItem != null)) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00D084).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('✨', style: TextStyle(fontSize: 16)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'レアアイテムを発見！',
+                          style: TextStyle(
+                            color: const Color(0xFF00D084),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
-        title: Text(log.title),
-        subtitle: Text('${log.distanceKm.toStringAsFixed(1)} km • '
-            '${_formatPace(log.pacePerKm)} • ${log.dateLabel}'),
-        trailing: Text(_formatDuration(log.durationMinutes)),
       ),
     );
   }
 
-  String _formatPace(Duration pace) {
-    final m = pace.inMinutes;
-    final s = pace.inSeconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}/km';
-  }
-
-  String _formatDuration(int minutes) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h == 0) return '$m分';
-    return '$h時間$m分';
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.title,
-    required this.value,
-    required this.accent,
-    this.compact = false,
-  });
-
-  final String title;
-  final String value;
-  final Gradient accent;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: compact ? 78 : 160,
-      decoration: BoxDecoration(
-        gradient: accent,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+  Widget _buildWalkStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.black54,
           ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment:
-            compact ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
         children: [
+
           Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+            '今月の統計',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF111111), Color(0xFF333333)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              children: [
+                _buildStatRow('総距離', '${_monthlyStats['totalDistance']} km', '🏃'),
+                const Divider(color: Colors.white24, height: 32),
+                _buildStatRow('散歩回数', '${_monthlyStats['totalWalks']} 回', '🐾'),
+                const Divider(color: Colors.white24, height: 32),
+                _buildStatRow('総時間', '${_monthlyStats['totalTime']} 分', '⏱️'),
+                const Divider(color: Colors.white24, height: 32),
+                _buildStatRow('平均ペース', '${_monthlyStats['avgPace']} min/km', '📊'),
+              ],
             ),
           ),
+          SizedBox(height: 20),
+          // 健康管理カード
+          Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00D084), Color(0xFF00A870)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HealthScreen(),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Text(
+                            '🩺',
+                            style: TextStyle(fontSize: 32),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '健康管理',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'ペットの健康状態を確認',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00D084),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Text(
+                      '🌈',
+                      style: TextStyle(fontSize: 32),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '多様性スコア',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '${_monthlyStats['diversityScore']}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'さまざまな場所で散歩をして、多様性を高めよう！',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSmallStatCard(
+                  '新しい場所',
+                  '${_monthlyStats['newPlacesExplored']}',
+                  '🗺️',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSmallStatCard(
+                  'レアアイテム',
+                  '${_monthlyStats['itemsFound']}',
+                  '✨',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value, String emoji) {
+    return Row(
+      children: [
+        Text(
+          emoji,
+          style: const TextStyle(fontSize: 24),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSmallStatCard(String label, String value, String emoji) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            emoji,
+            style: const TextStyle(fontSize: 28),
+          ),
+          const SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: compact ? 18 : 26,
+            style: const TextStyle(
+              fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementsTab() {
+    final unlocked = _achievements.where((a) => a.isUnlocked).toList();
+    final locked = _achievements.where((a) => !a.isUnlocked).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (unlocked.isNotEmpty) ...[
+            Text(
+              '達成済み (${unlocked.length})',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 16),
+            ...unlocked.map((achievement) => _buildAchievementCard(achievement)),
+          ],
+          const SizedBox(height: 24),
+          if (locked.isNotEmpty) ...[
+            Text(
+              '未達成 (${locked.length})',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 16),
+            ...locked.map((achievement) => _buildAchievementCard(achievement)),
+          ],
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementCard(Achievement achievement) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: achievement.isUnlocked
+            ? Border.all(color: const Color(0xFF00D084), width: 2)
+            : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: achievement.isUnlocked
+                  ? const Color(0xFF00D084).withOpacity(0.1)
+                  : Colors.black12,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Opacity(
+                opacity: achievement.isUnlocked ? 1.0 : 0.4,
+                child: Text(
+                  achievement.iconEmoji,
+                  style: const TextStyle(
+                    fontSize: 32,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  achievement.title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: achievement.isUnlocked ? Colors.black : Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  achievement.description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: achievement.isUnlocked ? Colors.black54 : Colors.black38,
+                  ),
+                ),
+                if (!achievement.isUnlocked) ...[
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: achievement.progressPercentage / 100,
+                    backgroundColor: Colors.black12,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00D084)),
+                    minHeight: 4,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${achievement.progress}/${achievement.target}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black38,
+                    ),
+                  ),
+                ],
+                if (achievement.isUnlocked && achievement.unlockedDate != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${DateFormat('yyyy年M月d日').format(achievement.unlockedDate!)}達成',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF00D084),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
-
